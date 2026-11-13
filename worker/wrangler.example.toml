@@ -1,0 +1,16 @@
+name = "tcu-api-proxy"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "tcutoyotanys"
+ALLOWED_ORIGINS = "https://TU-DOMINIO-DE-LA-APP"   # varios separados por coma
+UPSTREAM_URL = "https://URL-ACTUAL-DEL-TUNEL-O-ERP"
+GITHUB_REPO = "tsauxbodega/control-ubi-datos"
+GITHUB_FILE = "CONTROL_UBI_cache.xlsx"
+GITHUB_REF  = "main"
+
+# SECRETOS (no van en este archivo):
+#   wrangler secret put UPSTREAM_TOKEN   <- token NUEVO hacia el ERP
+#   wrangler secret put GITHUB_TOKEN     <- token de GitHub de SOLO LECTURA (ver docs/SEGURIDAD.md)
+#   wrangler secret put LEGACY_TOKEN     <- solo durante la migración; bórralo después
