@@ -1,3 +1,4 @@
+import { qrDataUrl } from './qr-local.js';
 import { ESTANTES, INV, QR_SELECTED, QR_SEL_MODE, UBI_TEO, set_QR_SEL_MODE } from './state-globals.js';
 import { normCode } from './file-upload.js';
 import { openQRShelfModal } from './modales-estante-panorama.js';
@@ -37,7 +38,7 @@ function printSelectedQRs(){
   const now=new Date().toLocaleString('es-CO');
   const cards=selEst.map(e=>{
     const url=`${base}?estante=${encodeURIComponent(e[0])}`;
-    const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(url)}&color=0d0d0d&bgcolor=ffffff&margin=8&qzone=1&format=png&ecc=M`;
+    const qrSrc=qrDataUrl(url,600);
     return `<div style="display:inline-flex;flex-direction:column;align-items:center;border:2px solid #c0392b;border-radius:10px;padding:10px 12px;margin:8px;width:160px;page-break-inside:avoid">
       <div style="font-size:8px;color:#888;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">Toyota · Control UBI</div>
       <img src="${qrSrc}" width="140" height="140" style="border-radius:4px;display:block;margin-bottom:6px">
@@ -56,9 +57,9 @@ function printSelectedQRs(){
   <h1>🏢 QR Estantes — Toyota Control UBI</h1>
   <div class="meta">Generado: ${now} · ${selEst.length} estante${selEst.length===1?'':'s'} seleccionado${selEst.length===1?'':'s'} · Escanear para auditoría rápida</div>
   <div class="grid">${cards}</div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),800);<\/script>
   </body></html>`);
   w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},800);
 }
 
 // Infiere la ubicación teórica de un código buscando en UBI_TEO
@@ -309,9 +310,9 @@ function abrirImpresionEtiqueta(a, b, plan, ubiTeoA, ubiTeoB){
     </style>
   </head><body>
     ${body}
-    <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},300);
 }
 
 // Exportar etiqueta desde el select en la pestaña Exportar

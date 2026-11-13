@@ -17,9 +17,9 @@ w.eval(`window.__rows=${JSON.stringify(rows)};
  const noop=()=>{}; const snap={exists:false,data:()=>({}),docs:[],forEach:noop}; const udoc={exists:true,data:()=>({rol:'admin',activo:true,nombre:'Tester',sede:130})};
  const docRef=(c)=>({get:async()=>c==='usuarios'?udoc:snap,set:async()=>{},update:async()=>{},delete:async()=>{},onSnapshot:()=>noop,collection:(x)=>colRef(x)});
  const colRef=(c)=>({doc:()=>docRef(c),get:async()=>snap,orderBy:()=>colRef(c),where:()=>colRef(c),limit:()=>colRef(c),onSnapshot:()=>noop,add:async()=>({})});
- const user={uid:'u1',email:'t@x.co',getIdToken:async()=>'tok'};
+ const user={uid:'u1',email:'t@x.co',getIdToken:async()=>'tok',multiFactor:{enrolledFactors:${process.env.BOOT_NO_MFA==='1'?'[]':"[{factorId:'totp',uid:'f1',displayName:'GA'}]"}}};
  window.matchMedia=()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}});
- window.XLSX={utils:{},read(){},writeFile(){}}; window.Html5Qrcode=function(){}; window.Html5QrcodeScanner=function(){};
+ window.qrcode=()=>({addData(){},make(){},getModuleCount:()=>21,createDataURL:()=>'data:image/gif;base64,R0lGODlhAQABAAAAACw='}); window.XLSX={utils:{},read(){},writeFile(){}}; window.Html5Qrcode=function(){}; window.Html5QrcodeScanner=function(){};
  const auth={onAuthStateChanged:(cb)=>{setTimeout(()=>cb(user),0);return noop;},currentUser:user,signOut:async()=>{}};
  window.firebase={initializeApp:()=>({}),auth:()=>auth,firestore:()=>({collection:colRef,doc:(p)=>docRef(p.split('/')[0]),enablePersistence:async()=>{},batch:()=>({set:noop,commit:async()=>{}}),runTransaction:async()=>{}})};
  window.firebase.firestore.FieldValue={serverTimestamp:()=>0,increment:()=>0};
@@ -28,6 +28,16 @@ const cache = new Map(); const load = (f) => cache.get(f) || (cache.set(f, new v
 const entry = load(path.join(root, entryFile)); await entry.link((s, r) => load(path.resolve(path.dirname(r.identifier), s))); await entry.evaluate();
 w.eval(`for (const f of window.__dcl) f.call(document, new Event('DOMContentLoaded'));`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); await sleep(4000);
+if (process.env.BOOT_NO_MFA === '1') {
+  assert.equal(doc.getElementById('appShell').style.display, 'none', 'MFA obligatorio: la app NO debe abrirse sin Google Authenticator');
+  assert.equal(doc.getElementById('authOverlay').style.display, 'flex');
+  assert.ok(doc.getElementById('mfaModalBg')?.classList.contains('on') && doc.getElementById('mfaModalBg').classList.contains('forced'), 'debe mostrarse la inscripción obligatoria');
+  assert.match(doc.getElementById('mfaBody').textContent, /obligatoria/);
+  assert.equal(doc.getElementById('mfaStart')?.tagName, 'BUTTON', 'falta el botón Activar');
+  assert.deepEqual(errors, [], 'errores en ejecución:\n' + errors.join('\n'));
+  console.log('OK  (MFA obligatorio: sin factor la app queda bloqueada en la inscripción)');
+  process.exit(0);
+}
 assert.equal(doc.getElementById('appShell').style.display, 'block', 'no entró al panel principal');
 assert.equal(doc.getElementById('authOverlay').style.display, 'none', 'la pantalla de login sigue visible');
 assert.match(doc.getElementById('ubadgeName').textContent, /Tester/, 'no se mostró el usuario');
@@ -38,6 +48,14 @@ for (const t of ['bus', 'ubi', 'prec', 'estantes', 'sugerir', 'diagnostico', 'no
 w.goTab('mant'); await sleep(120); // mantenimientos no tiene panel propio: solo se comprueba que no falle
 w.goTab('bus'); const q = doc.getElementById('busQ'); q.value = 'FILTRO'; q.dispatchEvent(new w.Event('input', { bubbles: true })); await sleep(500);
 assert.ok(doc.querySelector('#panel-bus').textContent.length > 400, 'la búsqueda no pintó nada');
+// Tiempo de sesión por rol: admin 30 min, supervisor/operador 15 min (el usuario de prueba es admin)
+const sess = cache.get(path.join(root, 'js/session.js'))?.namespace, authNs = cache.get(path.join(root, 'js/auth.js'))?.namespace;
+if (sess && authNs) {
+  const base = authNs.CURRENT_USER; assert.equal(base.rol, 'admin');
+  assert.equal(sess.getIdleOutMs(), 30 * 60 * 1000, 'admin: 30 min');
+  for (const rol of ['supervisor', 'operador']) { authNs.set_CURRENT_USER({ ...base, rol }); assert.equal(sess.getIdleOutMs(), 15 * 60 * 1000, rol + ': 15 min'); }
+  authNs.set_CURRENT_USER(base);
+}
 // Verificación en dos pasos: el paso del código reemplaza al formulario y se puede cancelar sin errores
 assert.equal(typeof w.submitMfaChallenge, 'function', 'falta submitMfaChallenge en window'); assert.equal(typeof w.openMfaModal, 'function', 'falta openMfaModal en window');
 assert.ok(doc.getElementById('authMfaForm') && doc.getElementById('mfaBtn'), 'falta el HTML del paso MFA / botón 🔐');

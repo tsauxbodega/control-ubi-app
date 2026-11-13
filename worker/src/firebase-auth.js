@@ -57,11 +57,12 @@ export const POLICY = [
   { re: /^\/api\//, roles: ['admin', 'supervisor', 'operador'] },
 ];
 
-/** ¿Este rol debe haber entrado con segundo factor? env.REQUIRE_MFA: vacío/false = no; true|all = todos; o lista de roles ("admin,supervisor"). */
+/** ¿Este rol debe haber entrado con segundo factor? OBLIGATORIO por defecto (falla cerrado).
+ *  env.REQUIRE_MFA: vacío/true/all = todos; false = apagado (solo para pruebas); o lista de roles ("admin,supervisor"). */
 export function mfaRequired(env, rol) {
-  const v = String(env.REQUIRE_MFA || '').trim().toLowerCase();
-  if (!v || v === 'false') return false;
-  if (v === 'true' || v === 'all') return true;
+  const v = String(env.REQUIRE_MFA ?? '').trim().toLowerCase();
+  if (v === 'false') return false;
+  if (!v || v === 'true' || v === 'all') return true;
   return v.split(',').map((x) => x.trim()).includes(String(rol).toLowerCase());
 }
 

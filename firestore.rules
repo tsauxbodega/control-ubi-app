@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// Reglas de Firestore de Control UBI.  PUBLICAR: Firebase Console → Firestore → Reglas  (o `firebase deploy --only firestore:rules`).
+// PRUEBA PRIMERO en el "Simulador de reglas" de la consola: este archivo se escribió leyendo el código de la app, no se ejecutó contra Firebase.
+//
+// Principios
+//  1. Todo exige sesión CON segundo factor (Google Authenticator): el token trae firebase.sign_in_second_factor = "totp".
+//     Así, aunque alguien se salte el aviso de la pantalla, el servidor no le entrega nada.
+//  2. Todo exige además un usuario ACTIVO registrado en /usuarios.
+//  3. Solo un admin crea, cambia el rol/estado/sede o borra usuarios. Nadie puede subirse el rol a sí mismo.
+//  4. Lo que no está listado abajo queda denegado.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function mfaOk()   { return request.auth != null && request.auth.token.firebase.sign_in_second_factor == 'totp'; }
+    function perfil()  { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data; }
+    function activo()  { return mfaOk()
+                           && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+                           && perfil().get('activo', true) != false; }
+    function esAdmin() { return activo() && perfil().rol == 'admin'; }
+
+    // Perfiles: cada quien lee el suyo (también si está desactivado, para poder avisarle); el admin gestiona todos.
+    match /usuarios/{uid} {
+      allow get: if mfaOk() && (request.auth.uid == uid || esAdmin());
+      allow list, create, update, delete: if esAdmin();
+
+      // Datos de sesión de cada usuario: solo él mismo.
+      match /estado/{key} {
+        allow read, write: if activo() && request.auth.uid == uid;
+      }
+    }
+
+    // Datos compartidos del equipo (divisores de precio, historial del cotizador).
+    // Si quieres que solo admin/supervisor cambien los divisores: separa `precio_divisores` y exige perfil().rol in ['admin','supervisor'].
+    match /equipo/{docId} {
+      allow read, write: if activo();
+    }
+
+    // Resúmenes de estantes/panorama que usan los QR.
+    // Ya NO son públicos: ver las instrucciones de docs/SEGURIDAD.md si se quisiera una vista para invitados (no recomendado).
+    match /estante_snapshots/{docId}  { allow read, write: if activo(); }
+    match /panorama_snapshot/{docId}  { allow read, write: if activo(); }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

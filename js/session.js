@@ -6,32 +6,36 @@ import { setActiveBodega } from './inventario-sql.js';
 import { goTab } from './ui-header-tabs.js';
 import { _qrGuestModalActive } from './radar-cambios.js';
 import { initAppData } from './init.js';
-import { refreshMfaBadge, resetMfaChallenge } from './mfa.js';
+import { enforceMfaEnrollment, refreshMfaBadge, resetMfaChallenge, userHasTotp } from './mfa.js';
 // ═══ js/session.js — extraído de index.html (líneas 6363–6650 del original) ═══
 // Módulo ES: importa lo que usa de otros módulos y exporta lo que otros necesitan (generado por análisis de ámbito; ver docs/MODULOS.md).
 // ══════════════════════════════════════════════════════════════════
-// TIMEOUT DE SESIÓN POR INACTIVIDAD
+// TIMEOUT DE SESIÓN POR INACTIVIDAD (según el rol)
 // ══════════════════════════════════════════════════════════════════
-// Configuración: 30 min de inactividad → aviso de 2 min → cierre
-// automático. El aviso permite al usuario extender la sesión con
-// un clic. Se reinicia ante cualquier interacción del usuario.
-//
-// Los timeouts se leen de localStorage para que el admin los pueda
-// ajustar sin tocar el código:
-//   ctrl_idle_warn_ms  (default: 28 min)
-//   ctrl_idle_out_ms   (default: 30 min)
+// admin → 30 min · supervisor y operador → 15 min. Aviso 2 min antes de cerrar;
+// "Seguir aquí" (o cualquier interacción) reinicia el conteo.
+// OJO: estos tiempos son FIJOS en el código. Antes se podían alargar desde el
+// navegador con localStorage (ctrl_idle_*_ms); eso se eliminó a propósito.
 // ══════════════════════════════════════════════════════════════════
-const IDLE_WARN_DEFAULT = 28 * 60 * 1000;  // 28 min → muestra aviso
-const IDLE_OUT_DEFAULT  = 30 * 60 * 1000;  // 30 min → cierra sesión
+const IDLE_OUT_MS_BY_ROLE = { admin: 30 * 60 * 1000 };
+const IDLE_OUT_MS_DEFAULT = 15 * 60 * 1000;   // supervisor, operador y cualquier otro rol
+const IDLE_WARN_BEFORE_MS = 2 * 60 * 1000;
 
 let _idleWarnTimer  = null;
 let _idleOutTimer   = null;
+let _idleWatchdog   = null;
+let _idleLastAct    = 0;
 let _idleWarnShown  = false;
 const IDLE_EVENTS = ['mousemove','keydown','mousedown','touchstart','scroll','click'];
 
-function getIdleMs(key, def){
-  try{ const v=parseInt(localStorage.getItem(key)||''); return isNaN(v)||v<60000?def:v; }
-  catch(e){ return def; }
+function getIdleOutMs(){ return (CURRENT_USER && IDLE_OUT_MS_BY_ROLE[CURRENT_USER.rol]) || IDLE_OUT_MS_DEFAULT; }
+function getIdleWarnMs(){ return getIdleOutMs() - IDLE_WARN_BEFORE_MS; }
+
+function idleLogout(){
+  hideIdleWarn();
+  doLogout();
+  // Mensaje breve: el listener de auth muestra el login y luego se avisa el motivo.
+  setTimeout(()=>showAuthErr('Sesión cerrada por inactividad.'), 400);
 }
 
 function resetIdleTimer(){
@@ -39,34 +43,34 @@ function resetIdleTimer(){
   clearTimeout(_idleWarnTimer);
   clearTimeout(_idleOutTimer);
   if(_idleWarnShown) hideIdleWarn();
-
-  const warnMs = getIdleMs('ctrl_idle_warn_ms', IDLE_WARN_DEFAULT);
-  const outMs  = getIdleMs('ctrl_idle_out_ms',  IDLE_OUT_DEFAULT);
-
-  _idleWarnTimer = setTimeout(showIdleWarn, warnMs);
-  _idleOutTimer  = setTimeout(()=>{
-    hideIdleWarn();
-    doLogout();
-    // Mostrar un mensaje breve antes de que el listener de auth oculte la pantalla
-    setTimeout(()=>{
-      const f=document.getElementById('loginForm');
-      if(f) f.querySelector?.('.autherr')?.textContent
-        && (document.getElementById('loginErr').textContent='');
-      const err=document.getElementById('loginErr');
-      if(err){ err.textContent='Sesión cerrada por inactividad.'; err.style.display='block'; }
-    }, 400);
-  }, outMs);
+  _idleLastAct = Date.now();
+  _idleWarnTimer = setTimeout(showIdleWarn, getIdleWarnMs());
+  _idleOutTimer  = setTimeout(idleLogout, getIdleOutMs());
 }
+
+// Los temporizadores del navegador se retrasan con la pestaña en segundo plano o el equipo
+// suspendido: este vigilante compara contra la hora real y cierra la sesión sin esperar al temporizador.
+function idleWatchdogTick(){
+  if(!CURRENT_USER || !_idleLastAct) return;
+  if(Date.now() - _idleLastAct >= getIdleOutMs()) idleLogout();
+}
+function onVisibilityIdleCheck(){ if(document.visibilityState==='visible') idleWatchdogTick(); }
 
 function stopIdleTimer(){
   clearTimeout(_idleWarnTimer);
   clearTimeout(_idleOutTimer);
+  clearInterval(_idleWatchdog); _idleWatchdog = null;
+  _idleLastAct = 0;
   IDLE_EVENTS.forEach(ev=>document.removeEventListener(ev, resetIdleTimer, {passive:true}));
+  document.removeEventListener('visibilitychange', onVisibilityIdleCheck);
   hideIdleWarn();
 }
 
 function startIdleTimer(){
   IDLE_EVENTS.forEach(ev=>document.addEventListener(ev, resetIdleTimer, {passive:true}));
+  document.addEventListener('visibilitychange', onVisibilityIdleCheck);
+  clearInterval(_idleWatchdog);
+  _idleWatchdog = setInterval(idleWatchdogTick, 15000);
   resetIdleTimer();
 }
 
@@ -85,9 +89,7 @@ function showIdleWarn(){
     ].join(';');
     document.body.appendChild(el);
   }
-  const outMs  = getIdleMs('ctrl_idle_out_ms',  IDLE_OUT_DEFAULT);
-  const warnMs = getIdleMs('ctrl_idle_warn_ms', IDLE_WARN_DEFAULT);
-  const secsLeft = Math.round((outMs - warnMs) / 1000);
+  const secsLeft = Math.round(IDLE_WARN_BEFORE_MS / 1000);
   el.innerHTML = `
     <span style="font-size:20px">⏱</span>
     <div style="flex:1">
@@ -127,6 +129,7 @@ function watchOwnUserDoc(){
       rEl.textContent = ROLE_LABEL[CURRENT_USER.rol];
       rEl.className = 'ubadge-role role-'+CURRENT_USER.rol;
       applyRolePermissions();
+      resetIdleTimer();   // el rol manda sobre el tiempo de sesión (admin 30 min, resto 15)
     }
     // Si un admin cambia la sede de este usuario desde otro dispositivo
     // mientras la sesión sigue abierta aquí, se refleja sin recargar.
@@ -159,6 +162,21 @@ fbAuth.onAuthStateChanged(async (user)=>{
     setAuthBtnLoading(false);
     resetMfaChallenge();   // vuelve del paso del código al formulario de correo/contraseña
     const f = document.getElementById('authForm'); if(f) f.reset();
+    return;
+  }
+  // ── MFA OBLIGATORIO ──────────────────────────────────────────────────
+  // Sin Google Authenticator activado no se entra a la app: se bloquea todo (ni siquiera se lee
+  // Firestore) hasta inscribirlo. Al terminar, la sesión se cierra para volver a entrar CON el
+  // código — así el token trae la marca de segundo factor que exigen el Worker y las reglas.
+  // (Esto es la parte visible; lo que de verdad protege es que el servidor rechaza tokens sin ella.)
+  if(!userHasTotp(user)){
+    set__authResolved(true);
+    set_CURRENT_USER(null);
+    stopIdleTimer();
+    document.getElementById('appShell').style.display='none';
+    const loading0=document.getElementById('authLoading'); if(loading0) loading0.style.display='none';
+    document.getElementById('authOverlay').style.display='flex';
+    enforceMfaEnrollment(user);
     return;
   }
   // OJO: aquí todavía NO fijamos _authResolved=true — hay una sesión de
@@ -299,5 +317,5 @@ function applyRolePermissions(){
   }
 }
 
-export { _relocUnsub, resetIdleTimer, stopIdleTimer };
+export { _relocUnsub, getIdleOutMs, resetIdleTimer, stopIdleTimer };
 export const set__relocUnsub = (v) => (_relocUnsub = v);

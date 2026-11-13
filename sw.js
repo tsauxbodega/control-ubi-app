@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Vive junto a index.html (raíz del sitio). Al cambiar el listado STATIC o la estrategia, sube el número de CACHE.
 // ─────────────────────────────────────────────────────────────────────────
-const CACHE  = 'control-ubi-v10';
+const CACHE  = 'control-ubi-v11';
 const STATIC = [
   './',
   'css/app.css',
@@ -13,6 +13,7 @@ const STATIC = [
   'js/config.js',
   'js/auth.js',
   'js/mfa.js',
+  'js/qr-local.js',
   'js/api.js',
   'js/session.js',
   'js/cloud-sync.js',
@@ -54,15 +55,22 @@ const STATIC = [
   'js/command-palette.js',
   'js/pwa-ui.js',
   'js/etiquetas.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://unpkg.com/html5-qrcode'
+  'vendor/xlsx.full.min.js',
+  'vendor/html5-qrcode.min.js',
+  'vendor/qrcode.js',
+  'vendor/fonts/ibm-plex-mono-latin-400-normal.woff2',
+  'vendor/fonts/ibm-plex-mono-latin-500-normal.woff2',
+  'vendor/fonts/ibm-plex-mono-latin-700-normal.woff2',
+  'vendor/fonts/ibm-plex-sans-latin-400-normal.woff2',
+  'vendor/fonts/ibm-plex-sans-latin-500-normal.woff2',
+  'vendor/fonts/ibm-plex-sans-latin-600-normal.woff2',
+  'vendor/fonts/ibm-plex-sans-latin-700-normal.woff2'
 ];
 
 // URLs de datos que NUNCA se deben cachear — siempre ir a red
 const NO_CACHE_PATTERNS = [
   'tcu-api-proxy.anys.workers.dev', // API puente SQL (Cloudflare Worker) — nunca cachear, siempre red
   '/api/kaizen',                    // por ruta también, para no repetir este bug si el dominio vuelve a cambiar
-  'tcunorteysur.dns.army',          // dominio anterior del puente — se deja por si aún se usa en algún punto
   '.xlsx',
   '.xls',
   '.csv',

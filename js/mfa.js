@@ -7,9 +7,8 @@
 //   · Requisito en Firebase: Authentication con Identity Platform + TOTP activado (ver docs/SEGURIDAD.md).
 import { clearAuthErr, fbAuth, setAuthBtnLoading, showAuthErr } from './auth.js';
 
-const FIREBASE_VERSION = '10.13.2'; // mantener IGUAL a los <script> firebase-*-compat de index.html
+const FIREBASE_VERSION = '10.13.2'; // mantener IGUAL a las etiquetas script firebase-*-compat de index.html
 const ESM_AUTH_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`;
-const QR_LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
 const MFA_ISSUER = 'Toyota Control UBI';
 const FACTOR_NAME = 'Google Authenticator';
 
@@ -29,14 +28,8 @@ function loadTotp() {
   return _totpPromise;
 }
 function loadQrLib() {
-  if (window.qrcode) return Promise.resolve(window.qrcode);
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = QR_LIB_URL;
-    s.onload = () => (window.qrcode ? resolve(window.qrcode) : reject(new Error('qr')));
-    s.onerror = () => reject(new Error('qr'));
-    document.head.appendChild(s);
-  });
+  // vendor/qrcode.js (local, lo carga index.html): sin CDN.
+  return window.qrcode ? Promise.resolve(window.qrcode) : Promise.reject(new Error('qr'));
 }
 
 function mapMfaError(err) {
@@ -130,6 +123,11 @@ export function submitMfaChallenge(ev) {
 // 2) INSCRIPCIÓN / ESTADO: ventana "Verificación en dos pasos"
 // ═══════════════════════════════════════════════════════════════════
 const enrolledTotp = (user) => ((user && user.multiFactor && user.multiFactor.enrolledFactors) || []).filter((f) => f.factorId === 'totp');
+/** ¿La cuenta ya tiene Google Authenticator (TOTP) activado? */
+export const userHasTotp = (user) => enrolledTotp(user).length > 0;
+
+// Modo obligatorio: la ventana no se puede cerrar y al terminar se vuelve a iniciar sesión.
+let _forced = false;
 
 /** Marca el botón 🔐 del encabezado según el usuario tenga o no el factor activo. */
 export function refreshMfaBadge() {
@@ -153,13 +151,21 @@ function ensureModal() {
     '<div class="mfa-title" id="mfaTitle">🔐 Verificación en dos pasos</div>' +
     '<div id="mfaBody"></div></div>';
   document.body.appendChild(bg);
-  bg.addEventListener('click', (e) => { if (e.target === bg) closeMfaModal(); });
-  $('mfaClose').addEventListener('click', closeMfaModal);
+  bg.addEventListener('click', (e) => { if (e.target === bg && !_forced) closeMfaModal(); });
+  $('mfaClose').addEventListener('click', () => { if (!_forced) closeMfaModal(); });
   return bg;
 }
 export function closeMfaModal() {
   const bg = $('mfaModalBg'); if (bg) bg.classList.remove('on');
   refreshMfaBadge();
+}
+
+/** Bloquea la app hasta que el usuario active el segundo factor (lo llama session.js). */
+export function enforceMfaEnrollment(user) {
+  _forced = true;
+  const bg = ensureModal();
+  bg.classList.add('on', 'forced');
+  renderStatus();
 }
 export function openMfaModal() {
   if (!fbAuth.currentUser) return;
@@ -191,6 +197,7 @@ function renderStatus() {
   const f = enrolledTotp(user)[0];
   if (!f) {
     setBody(
+      (_forced ? '<div class="mfa-force"><b>La verificación en dos pasos es obligatoria.</b> Actívala para poder usar la app.</div>' : '') +
       '<p class="mfa-p">Protege tu cuenta con un código de 6 dígitos que cambia cada 30 segundos, generado por <b>Google Authenticator</b> (o Microsoft Authenticator, Authy, 1Password…) en tu celular.</p>' +
       '<div class="mfa-badge off">No activada</div>' +
       '<div class="authlbl">Tu contraseña actual</div>' +
@@ -198,20 +205,34 @@ function renderStatus() {
       '<button type="button" class="authbtn" id="mfaStart"><span id="mfaStartTxt">Activar</span></button>' + MSGS);
     $('mfaStart').addEventListener('click', startEnroll);
     $('mfaPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') startEnroll(); });
+    addForcedLogout();
     return;
   }
   setBody(
     '<div class="mfa-badge on">✅ Activa</div>' +
     '<p class="mfa-p">Factor: <b id="mfaFName"></b><br><span id="mfaFDate" class="mfa-muted"></span></p>' +
-    '<p class="mfa-p mfa-muted">Para desactivarla confirma tu contraseña y el código actual de la app.</p>' +
-    '<div class="authlbl">Tu contraseña actual</div>' +
-    '<input type="password" id="mfaPass" class="authinput" autocomplete="current-password" placeholder="••••••••">' +
-    '<div class="authlbl">Código de la app</div>' +
-    '<input type="text" id="mfaCode" class="authinput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">' +
-    '<button type="button" class="authbtn mfa-danger" id="mfaDisable"><span>Desactivar</span></button>' + MSGS);
+    '<p class="mfa-p mfa-muted">La verificación en dos pasos es obligatoria en esta app y no se puede desactivar. Si cambiaste de celular o perdiste el acceso, pide a un administrador que la restablezca.</p>' + MSGS);
   $('mfaFName').textContent = f.displayName || FACTOR_NAME;
   $('mfaFDate').textContent = f.enrollmentTime ? 'Activada el ' + new Date(f.enrollmentTime).toLocaleDateString() : '';
-  $('mfaDisable').addEventListener('click', disableMfa);
+}
+
+function addForcedLogout() {
+  if (!_forced) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'authbtn mfa-ghost'; b.id = 'mfaForcedOut';
+  b.innerHTML = '<span>Cerrar sesión</span>';
+  b.addEventListener('click', () => { _forced = false; closeMfaModal(); fbAuth.signOut(); });
+  $('mfaBody').appendChild(b);
+}
+
+/** Tras activar el factor en modo obligatorio: volver a entrar con el código (así el token trae el segundo factor). */
+function finishForcedEnrollment() {
+  setBody('<div class="mfa-ok on">✅ Verificación en dos pasos activada.</div>' +
+    '<p class="mfa-p">Por seguridad debes iniciar sesión de nuevo; esta vez te pediremos el código de la app.</p>' +
+    '<button type="button" class="authbtn" id="mfaReLogin"><span>Iniciar sesión</span></button>');
+  const go = () => { _forced = false; closeMfaModal(); fbAuth.signOut(); };
+  $('mfaReLogin').addEventListener('click', go);
+  setTimeout(() => { if (_forced) go(); }, 6000);
 }
 
 function renderVerifyEmail(user) {
@@ -227,6 +248,7 @@ function renderVerifyEmail(user) {
     busy(false, 'mfaSendMail');
   });
   $('mfaMailDone').addEventListener('click', renderStatus);
+  addForcedLogout();
 }
 
 async function startEnroll() {
@@ -282,43 +304,11 @@ async function confirmEnroll(user, secret, Totp) {
   try {
     await user.multiFactor.enroll(Totp.assertionForEnrollment(secret, code), FACTOR_NAME);
     refreshMfaBadge();
+    if (_forced) { finishForcedEnrollment(); return; }
     renderStatus();
     setMsg('ok', 'Verificación en dos pasos activada. Desde ahora, al iniciar sesión te pediremos el código.');
   } catch (e) {
     busy(false, 'mfaConfirm');
     setMsg('err', mapMfaError(e));
-  }
-}
-
-async function disableMfa() {
-  const user = fbAuth.currentUser;
-  const pass = $('mfaPass').value;
-  const code = $('mfaCode').value.trim();
-  if (!pass) { setMsg('err', 'Escribe tu contraseña actual.'); return; }
-  if (!sixDigits(code)) { setMsg('err', 'Escribe el código de 6 dígitos de la app.'); return; }
-  busy(true, 'mfaDisable'); setMsg('err', '');
-  try {
-    const factor = enrolledTotp(user)[0];
-    try {
-      await reauth(user, pass);
-    } catch (e) {
-      // Con el factor activo, reautenticar pide también el segundo paso.
-      const hint = e && e.code === 'auth/multi-factor-auth-required' && e.resolver && e.resolver.hints.find((h) => h.factorId === 'totp');
-      if (!hint) throw e;
-      const Totp = await loadTotp();
-      await e.resolver.resolveSignIn(Totp.assertionForSignIn(hint.uid, code));
-    }
-    await user.multiFactor.unenroll(factor);
-    try { await user.reload(); } catch (e) {
-      if (e && e.code === 'auth/user-token-expired') { // Firebase puede cerrar la sesión tras quitar el factor
-        closeMfaModal(); fbAuth.signOut(); return;
-      }
-      throw e;
-    }
-    refreshMfaBadge();
-    renderStatus();
-    setMsg('ok', 'Verificación en dos pasos desactivada.');
-  } catch (e) {
-    if ($('mfaDisable')) { busy(false, 'mfaDisable'); setMsg('err', mapMfaError(e)); }
   }
 }

@@ -173,6 +173,7 @@ function mapAuthError(err){
 }
 function doLogout(){
   stopIdleTimer();
+  try{ localStorage.removeItem(USER_CACHE_KEY); }catch(e){}   // el perfil/rol cacheado no debe sobrevivir al cierre de sesión
   fbAuth.signOut();
 }
 

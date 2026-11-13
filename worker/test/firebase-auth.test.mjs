@@ -35,7 +35,7 @@ globalThis.fetch = async (url) => {
   const f = { rol: { stringValue: r.rol } }; if (r.activo === false) f.activo = { booleanValue: false };
   return new Response(JSON.stringify({ fields: f }));
 };
-const env = { FIREBASE_PROJECT_ID: P };
+const env = { FIREBASE_PROJECT_ID: P, REQUIRE_MFA: 'false' }; // las pruebas de roles/política no miran el segundo factor; abajo se prueba aparte
 const req = (path, token) => new Request('https://x.dev' + path, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
 const as = async (uid, path) => authorize(req(path, await mk({ sub: uid })), env);
 
@@ -60,7 +60,8 @@ assert.equal((await asMfa('adm', { firebase: { sign_in_second_factor: 'phone' } 
 assert.equal((await asMfa('adm', {}, { REQUIRE_MFA: 'admin,supervisor' })).status, 403, 'MFA por rol: admin sin factor');
 assert.equal((await asMfa('ope', {}, { REQUIRE_MFA: 'admin,supervisor' })).ok, true, 'MFA por rol: operador exento');
 assert.equal((await asMfa('adm', {}, { REQUIRE_MFA: 'false' })).ok, true, 'MFA desactivado');
-assert.equal((await asMfa('adm', {}, {})).ok, true, 'MFA sin configurar = comportamiento anterior');
+assert.equal((await authorize(req('/api/kaizen', await mk({ sub: 'adm' })), { FIREBASE_PROJECT_ID: P })).status, 403, 'MFA OBLIGATORIO por defecto: sin REQUIRE_MFA se exige');
+assert.equal((await authorize(req('/api/kaizen', await mk({ sub: 'adm', ...conMfa })), { FIREBASE_PROJECT_ID: P })).ok, true, 'MFA por defecto: con TOTP pasa');
 // /api/excel: usa el token de GitHub, no lo filtra, y HEAD no trae cuerpo
 let visto;
 globalThis.fetch = async (url, o) => { visto = { url: String(url), ...o };

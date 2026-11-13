@@ -1,0 +1,18 @@
+# Cabeceras de seguridad (Cloudflare Pages). npm run build copia este archivo a dist/.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://tcu-api-proxy.anys.workers.dev https://*.googleapis.com; frame-src https://tcutoyotanys.firebaseapp.com; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  X-Robots-Tag: noindex, nofollow
+
+# El documento y el service worker nunca se sirven desde caché del navegador/CDN: así cada despliegue llega completo.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache

@@ -10,6 +10,7 @@
      al HTML, misma carpeta) — necesario para que Android genere un WebAPK
      real al instalar, no solo un atajo. Ver detalle en el JS, sección
      "PWA install". -->
+<meta name="robots" content="noindex, nofollow">
 <link rel="manifest" id="pwaManifest" href="manifest.json">
 
 <!-- Meta globales -->
@@ -32,8 +33,9 @@
 <!-- iOS launch screens (solid color; el tamaño exacto los define el SO) -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/html5-qrcode.min.js"></script>
+<script src="vendor/qrcode.js"></script>
 <!-- Firebase (compat SDK — funciona sin bundler, ideal para app estática en Netlify) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>

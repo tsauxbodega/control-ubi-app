@@ -177,8 +177,9 @@ function exportPDF(type){
       <tbody>${rows}</tbody></table>`;
   }
 
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>${style}</head><body>${body}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>${style}</head><body>${body}</body></html>`);
   w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},300);
 }
 
 function populateEstanteSelects(){
