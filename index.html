@@ -84,6 +84,16 @@
       </button>
       <div class="autherr" id="authErr"></div>
     </form>
+    <!-- Segundo paso (verificación en dos pasos): lo muestra js/mfa.js cuando la cuenta tiene Google Authenticator -->
+    <form id="authMfaForm" style="display:none" onsubmit="return submitMfaChallenge(event)">
+      <div class="authlbl">Código de Google Authenticator</div>
+      <input type="text" id="authMfaCode" class="authinput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required placeholder="123456">
+      <button type="submit" class="authbtn" id="authMfaBtn">
+        <span class="authspin" id="authMfaSpin"></span>
+        <span id="authMfaBtnTxt">Verificar</span>
+      </button>
+      <button type="button" class="authbtn mfa-ghost" onclick="cancelMfaChallenge()"><span>← Volver</span></button>
+    </form>
     <div class="authfoot">¿No tienes cuenta? Solicítala a un administrador.</div>
   </div>
 </div>
@@ -212,6 +222,7 @@
         <div class="ubadge-role" id="ubadgeRole">—</div>
       </div>
       <span id="offlineBadge" style="display:none;font-family:var(--mono);font-size:8px;font-weight:700;color:var(--gold2);background:rgba(232,156,32,.12);border:1px solid rgba(232,156,32,.35);border-radius:3px;padding:2px 7px;margin-right:6px;white-space:nowrap;cursor:help" title="Sin conexión — trabajando con la sesión y los datos guardados en este dispositivo. Los cambios se sincronizarán solos cuando vuelva el internet.">📴 Sin conexión</span>
+      <button class="ubadge-out" id="mfaBtn" onclick="openMfaModal()" title="Verificación en dos pasos" aria-label="Verificación en dos pasos">🔐</button>
       <button class="ubadge-out" onclick="doLogout()" title="Cerrar sesión" aria-label="Cerrar sesión"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></button>
     </div>
   </div>

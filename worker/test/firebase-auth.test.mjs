@@ -50,6 +50,17 @@ assert.equal((await as('fantasma', '/api/kaizen')).status, 403, 'sin documento e
 assert.equal((await as('adm', '/otra-cosa')).status, 403, 'ruta fuera de la política');
 assert.equal((await authorize(req('/api/kaizen', 'viejo'), { ...env, LEGACY_TOKEN: 'viejo' })).ok, true, 'puente legacy');
 assert.equal((await authorize(req('/api/kaizen', 'otro'), { ...env, LEGACY_TOKEN: 'viejo' })).status, 401, 'legacy no abre otros');
+// REQUIRE_MFA: exige el segundo factor (claim firebase.sign_in_second_factor) según el rol
+const asMfa = async (uid, extra, e) => authorize(req('/api/kaizen', await mk({ sub: uid, ...extra })), { ...env, ...e });
+const conMfa = { firebase: { sign_in_provider: 'password', sign_in_second_factor: 'totp' } };
+assert.equal((await asMfa('adm', {}, { REQUIRE_MFA: 'true' })).status, 403, 'MFA exigido a todos: sin segundo factor');
+assert.equal((await asMfa('adm', { firebase: { sign_in_provider: 'password' } }, { REQUIRE_MFA: 'all' })).status, 403, 'MFA: token sin claim');
+assert.equal((await asMfa('adm', conMfa, { REQUIRE_MFA: 'true' })).ok, true, 'MFA: con segundo factor TOTP');
+assert.equal((await asMfa('adm', { firebase: { sign_in_second_factor: 'phone' } }, { REQUIRE_MFA: 'true' })).status, 403, 'MFA: solo TOTP');
+assert.equal((await asMfa('adm', {}, { REQUIRE_MFA: 'admin,supervisor' })).status, 403, 'MFA por rol: admin sin factor');
+assert.equal((await asMfa('ope', {}, { REQUIRE_MFA: 'admin,supervisor' })).ok, true, 'MFA por rol: operador exento');
+assert.equal((await asMfa('adm', {}, { REQUIRE_MFA: 'false' })).ok, true, 'MFA desactivado');
+assert.equal((await asMfa('adm', {}, {})).ok, true, 'MFA sin configurar = comportamiento anterior');
 // /api/excel: usa el token de GitHub, no lo filtra, y HEAD no trae cuerpo
 let visto;
 globalThis.fetch = async (url, o) => { visto = { url: String(url), ...o };

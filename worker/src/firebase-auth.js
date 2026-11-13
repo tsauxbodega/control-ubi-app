@@ -57,6 +57,14 @@ export const POLICY = [
   { re: /^\/api\//, roles: ['admin', 'supervisor', 'operador'] },
 ];
 
+/** ¿Este rol debe haber entrado con segundo factor? env.REQUIRE_MFA: vacío/false = no; true|all = todos; o lista de roles ("admin,supervisor"). */
+export function mfaRequired(env, rol) {
+  const v = String(env.REQUIRE_MFA || '').trim().toLowerCase();
+  if (!v || v === 'false') return false;
+  if (v === 'true' || v === 'all') return true;
+  return v.split(',').map((x) => x.trim()).includes(String(rol).toLowerCase());
+}
+
 /** Punto de entrada: {ok:true, uid, rol} | {ok:false, status, error}. `env.LEGACY_TOKEN` = puente temporal. */
 export async function authorize(request, env, fetchFn = fetch) {
   const h = request.headers.get('Authorization') || '';
@@ -73,5 +81,7 @@ export async function authorize(request, env, fetchFn = fetch) {
   const rol = await getRole(payload.sub, token, { projectId: env.FIREBASE_PROJECT_ID, fetchFn });
   const rule = POLICY.find((r) => r.re.test(path));
   if (!rol || !rule || !rule.roles.includes(rol)) return { ok: false, status: 403, error: 'Sin permiso' };
+  // Verificación en dos pasos: Firebase marca en el token cómo se entró (firebase.sign_in_second_factor = 'totp').
+  if (mfaRequired(env, rol) && payload.firebase?.sign_in_second_factor !== 'totp') return { ok: false, status: 403, error: 'Se requiere verificación en dos pasos' };
   return { ok: true, uid: payload.sub, rol };
 }

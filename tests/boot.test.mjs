@@ -38,6 +38,9 @@ for (const t of ['bus', 'ubi', 'prec', 'estantes', 'sugerir', 'diagnostico', 'no
 w.goTab('mant'); await sleep(120); // mantenimientos no tiene panel propio: solo se comprueba que no falle
 w.goTab('bus'); const q = doc.getElementById('busQ'); q.value = 'FILTRO'; q.dispatchEvent(new w.Event('input', { bubbles: true })); await sleep(500);
 assert.ok(doc.querySelector('#panel-bus').textContent.length > 400, 'la búsqueda no pintó nada');
+// Verificación en dos pasos: el paso del código reemplaza al formulario y se puede cancelar sin errores
+assert.equal(typeof w.submitMfaChallenge, 'function', 'falta submitMfaChallenge en window'); assert.equal(typeof w.openMfaModal, 'function', 'falta openMfaModal en window');
+assert.ok(doc.getElementById('authMfaForm') && doc.getElementById('mfaBtn'), 'falta el HTML del paso MFA / botón 🔐');
 assert.deepEqual(errors, [], 'errores en ejecución:\n' + errors.join('\n'));
 console.log(`OK  (${cache.size} módulo(s), 14 pestañas, búsqueda, sin errores)`);
 process.exit(0);

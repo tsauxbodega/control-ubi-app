@@ -1,6 +1,7 @@
 import { stopIdleTimer } from './session.js';
 import { ESTANTES, INV, UBI_TEO } from './state-globals.js';
 import { handleQRParam } from './radar-cambios.js';
+import { startMfaChallenge } from './mfa.js';
 // ═══ js/auth.js — extraído de index.html (líneas 6193–6362 del original) ═══
 // Módulo ES: importa lo que usa de otros módulos y exporta lo que otros necesitan (generado por análisis de ámbito; ver docs/MODULOS.md).
 // ═══════════════════════════════════════════════════════════════════
@@ -154,6 +155,8 @@ function handleLoginSubmit(ev){
   if(!email || !pass) return false;
   setAuthBtnLoading(true);
   fbAuth.signInWithEmailAndPassword(email, pass).catch(err=>{
+    // Cuenta con verificación en dos pasos: pedir el código de Google Authenticator (js/mfa.js).
+    if(err && err.code==='auth/multi-factor-auth-required'){ startMfaChallenge(err); return; }
     setAuthBtnLoading(false);
     showAuthErr(mapAuthError(err));
   });
@@ -173,6 +176,6 @@ function doLogout(){
   fbAuth.signOut();
 }
 
-export { CURRENT_USER, ROLES, ROLE_LABEL, TAB_PERMISSIONS, _authResolved, _cloudSaveTimers, cacheUserProfile, canAccessTab, db, doLogout, fbAuth, firebaseConfig, getCachedUserProfile, handleLoginSubmit, setAuthBtnLoading, showAuthErr, showOfflineBadge, waitForAppData, waitForAuthResolved };
+export { CURRENT_USER, ROLES, ROLE_LABEL, TAB_PERMISSIONS, _authResolved, _cloudSaveTimers, cacheUserProfile, canAccessTab, clearAuthErr, db, doLogout, fbAuth, firebaseConfig, getCachedUserProfile, handleLoginSubmit, setAuthBtnLoading, showAuthErr, showOfflineBadge, waitForAppData, waitForAuthResolved };
 export const set_CURRENT_USER = (v) => (CURRENT_USER = v);
 export const set__authResolved = (v) => (_authResolved = v);

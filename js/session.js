@@ -6,6 +6,7 @@ import { setActiveBodega } from './inventario-sql.js';
 import { goTab } from './ui-header-tabs.js';
 import { _qrGuestModalActive } from './radar-cambios.js';
 import { initAppData } from './init.js';
+import { refreshMfaBadge, resetMfaChallenge } from './mfa.js';
 // ═══ js/session.js — extraído de index.html (líneas 6363–6650 del original) ═══
 // Módulo ES: importa lo que usa de otros módulos y exporta lo que otros necesitan (generado por análisis de ámbito; ver docs/MODULOS.md).
 // ══════════════════════════════════════════════════════════════════
@@ -156,6 +157,7 @@ fbAuth.onAuthStateChanged(async (user)=>{
       document.getElementById('authOverlay').style.display='flex';
     }
     setAuthBtnLoading(false);
+    resetMfaChallenge();   // vuelve del paso del código al formulario de correo/contraseña
     const f = document.getElementById('authForm'); if(f) f.reset();
     return;
   }
@@ -215,6 +217,7 @@ fbAuth.onAuthStateChanged(async (user)=>{
     document.getElementById('appShell').style.display='block';
     setAuthBtnLoading(false);
     showOfflineBadge(false);
+    refreshMfaBadge();
     watchOwnUserDoc();
     watchSharedReloc();
     startIdleTimer();  // ← inactividad
