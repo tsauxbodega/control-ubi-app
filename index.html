@@ -47,6 +47,7 @@
 
 <!-- ═══════════════════ LOGIN ═══════════════════ -->
 <div id="authOverlay">
+  <div class="authbg" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
 <div id="authLoading" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:40px 20px">
     <div class="hlogo">
       <svg width="40" height="40" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-label="Toyota Control UBI">
@@ -75,11 +76,15 @@
       </div>
     </div>
     <div id="authQrHint" style="display:none;margin:-6px 0 16px;padding:9px 12px;background:var(--blue2);border:1px solid rgba(74,142,240,.3);border-radius:6px;color:var(--blue);font-family:var(--sans);font-size:12px"></div>
+    <div class="authchip"><i></i>Conexión cifrada · Verificación en dos pasos</div>
     <form id="authForm" onsubmit="return handleLoginSubmit(event)">
       <div class="authlbl">Correo</div>
       <input type="email" id="authEmail" class="authinput" autocomplete="username" required placeholder="usuario@toyota.com">
       <div class="authlbl">Contraseña</div>
-      <input type="password" id="authPass" class="authinput" autocomplete="current-password" required placeholder="••••••••">
+      <div class="authfield">
+        <input type="password" id="authPass" class="authinput" autocomplete="current-password" required placeholder="••••••••">
+        <button type="button" class="authtoggle" id="authPassToggle" aria-label="Mostrar contraseña" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 20L20 4"/></svg></button>
+      </div>
       <button type="submit" class="authbtn" id="authBtn">
         <span class="authspin" id="authSpin"></span>
         <span id="authBtnTxt">Iniciar sesión</span>
@@ -88,8 +93,12 @@
     </form>
     <!-- Segundo paso (verificación en dos pasos): lo muestra js/mfa.js cuando la cuenta tiene Google Authenticator -->
     <form id="authMfaForm" style="display:none" onsubmit="return submitMfaChallenge(event)">
-      <div class="authlbl">Código de Google Authenticator</div>
-      <input type="text" id="authMfaCode" class="authinput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required placeholder="123456">
+      <div class="authmfa-head">
+        <div class="authmfa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <div><div class="authmfa-t">Verificación en dos pasos</div><div class="authmfa-s">Abre Google Authenticator y escribe el código de 6 dígitos.</div></div>
+      </div>
+      <div class="otp"><div class="otp-cells" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b></div>
+        <input type="text" id="authMfaCode" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required aria-label="Código de Google Authenticator de 6 dígitos"></div>
       <button type="submit" class="authbtn" id="authMfaBtn">
         <span class="authspin" id="authMfaSpin"></span>
         <span id="authMfaBtnTxt">Verificar</span>
@@ -224,7 +233,7 @@
         <div class="ubadge-role" id="ubadgeRole">—</div>
       </div>
       <span id="offlineBadge" style="display:none;font-family:var(--mono);font-size:8px;font-weight:700;color:var(--gold2);background:rgba(232,156,32,.12);border:1px solid rgba(232,156,32,.35);border-radius:3px;padding:2px 7px;margin-right:6px;white-space:nowrap;cursor:help" title="Sin conexión — trabajando con la sesión y los datos guardados en este dispositivo. Los cambios se sincronizarán solos cuando vuelva el internet.">📴 Sin conexión</span>
-      <button class="ubadge-out" id="mfaBtn" onclick="openMfaModal()" title="Verificación en dos pasos" aria-label="Verificación en dos pasos">🔐</button>
+      <button class="ubadge-out" id="mfaBtn" onclick="openMfaModal()" title="Verificación en dos pasos" aria-label="Verificación en dos pasos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></button>
       <button class="ubadge-out" onclick="doLogout()" title="Cerrar sesión" aria-label="Cerrar sesión"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></button>
     </div>
   </div>

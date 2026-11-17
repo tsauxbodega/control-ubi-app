@@ -52,6 +52,47 @@ function mapMfaError(err) {
 
 const sixDigits = (v) => /^\d{6}$/.test(String(v || '').trim());
 
+// ── Piezas visuales reutilizables ───────────────────────────────────
+const ICON_SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>';
+const ICON_CHECK = '<svg class="mfa-check" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M14 27l8 8 16-17"/></svg>';
+
+/** Campo de código de 6 casillas: un <input> real (transparente, recibe teclado, pegado y autocompletado) sobre 6 casillas que lo reflejan. */
+function otpHtml(id) {
+  return '<div class="otp"><div class="otp-cells" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b></div>' +
+    '<input type="text" id="' + id + '" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="Código de 6 dígitos"></div>';
+}
+function bindOtp(input, onComplete) {
+  if (!input || input._otp) return;
+  input._otp = true;
+  const wrap = input.closest('.otp');
+  const cells = Array.from(wrap.querySelectorAll('.otp-cells b'));
+  const paint = () => {
+    const v = input.value, focused = document.activeElement === input;
+    cells.forEach((c, i) => {
+      c.textContent = v[i] || '';
+      c.classList.toggle('fill', !!v[i]);
+      c.classList.toggle('on', focused && i === Math.min(v.length, cells.length - 1));
+    });
+  };
+  input.addEventListener('input', () => {
+    const d = input.value.replace(/\D/g, '').slice(0, 6);
+    if (input.value !== d) input.value = d;
+    wrap.classList.remove('err');
+    paint();
+    if (d.length === 6 && onComplete) onComplete();   // al completar el 6.º dígito se envía solo
+  });
+  ['focus', 'blur', 'keyup', 'click'].forEach((e) => input.addEventListener(e, paint));
+  wrap.addEventListener('click', () => input.focus());
+  input._paint = paint;
+  paint();
+}
+function setOtp(input, v) { if (!input) return; input.value = v; if (input._paint) input._paint(); }
+function failOtp(input) {
+  const wrap = input && input.closest('.otp'); if (!wrap) return;
+  wrap.classList.add('err', 'shake');
+  setTimeout(() => wrap.classList.remove('shake'), 450);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // 1) LOGIN: segundo paso cuando la cuenta ya tiene el factor activado
 // ═══════════════════════════════════════════════════════════════════
@@ -78,7 +119,7 @@ export function startMfaChallenge(err) {
   clearAuthErr();
   $('authForm').style.display = 'none';
   $('authMfaForm').style.display = 'block';
-  const i = $('authMfaCode'); i.value = ''; i.focus();
+  const i = $('authMfaCode'); setOtp(i, ''); i.focus();
 }
 
 /** Vuelve al formulario de correo/contraseña (también se llama al cerrar sesión). */
@@ -87,7 +128,7 @@ export function resetMfaChallenge() {
   _hint = null;
   const f = $('authForm'); if (f) f.style.display = '';
   const m = $('authMfaForm'); if (m) m.style.display = 'none';
-  const i = $('authMfaCode'); if (i) i.value = '';
+  setOtp($('authMfaCode'), '');
   setMfaLoading(false);
 }
 
@@ -98,9 +139,10 @@ export function cancelMfaChallenge() {
 }
 
 async function doMfaChallenge() {
+  const btn = $('authMfaBtn'); if (btn && btn.disabled) return;   // ya hay una verificación en curso
   clearAuthErr();
   const code = $('authMfaCode').value.trim();
-  if (!sixDigits(code)) { showAuthErr('Escribe el código de 6 dígitos de la app.'); return; }
+  if (!sixDigits(code)) { showAuthErr('Escribe el código de 6 dígitos de la app.'); failOtp($('authMfaCode')); return; }
   if (!_resolver || !_hint) { resetMfaChallenge(); showAuthErr('La verificación expiró. Inicia sesión de nuevo.'); return; }
   setMfaLoading(true);
   try {
@@ -110,7 +152,7 @@ async function doMfaChallenge() {
   } catch (e) {
     setMfaLoading(false);
     showAuthErr(mapMfaError(e));
-    const i = $('authMfaCode'); if (i) { i.value = ''; i.focus(); }
+    const i = $('authMfaCode'); if (i) { setOtp(i, ''); failOtp(i); i.focus(); }
   }
 }
 export function submitMfaChallenge(ev) {
@@ -129,7 +171,7 @@ export const userHasTotp = (user) => enrolledTotp(user).length > 0;
 // Modo obligatorio: la ventana no se puede cerrar y al terminar se vuelve a iniciar sesión.
 let _forced = false;
 
-/** Marca el botón 🔐 del encabezado según el usuario tenga o no el factor activo. */
+/** Marca el botón del escudo en el encabezado según el usuario tenga o no el factor activo. */
 export function refreshMfaBadge() {
   try {
     const btn = $('mfaBtn'); if (!btn) return;
@@ -148,7 +190,7 @@ function ensureModal() {
   bg.innerHTML =
     '<div class="mfa-card" role="dialog" aria-modal="true" aria-labelledby="mfaTitle">' +
     '<button type="button" class="mfa-x" id="mfaClose" aria-label="Cerrar">✕</button>' +
-    '<div class="mfa-title" id="mfaTitle">🔐 Verificación en dos pasos</div>' +
+    '<div class="mfa-title" id="mfaTitle"><span class="mfa-title-ico">' + ICON_SHIELD + '</span>Verificación en dos pasos</div>' +
     '<div id="mfaBody"></div></div>';
   document.body.appendChild(bg);
   bg.addEventListener('click', (e) => { if (e.target === bg && !_forced) closeMfaModal(); });
@@ -198,19 +240,22 @@ function renderStatus() {
   if (!f) {
     setBody(
       (_forced ? '<div class="mfa-force"><b>La verificación en dos pasos es obligatoria.</b> Actívala para poder usar la app.</div>' : '') +
-      '<p class="mfa-p">Protege tu cuenta con un código de 6 dígitos que cambia cada 30 segundos, generado por <b>Google Authenticator</b> (o Microsoft Authenticator, Authy, 1Password…) en tu celular.</p>' +
-      '<div class="mfa-badge off">No activada</div>' +
+      '<div class="mfa-hero"><div class="mfa-hero-ico">' + ICON_SHIELD + '</div>' +
+      '<div class="mfa-hero-t">Protege tu cuenta</div>' +
+      '<div class="mfa-hero-s">Un código de 6 dígitos que cambia cada 30 segundos, generado en tu celular por <b>Google Authenticator</b> (o Microsoft Authenticator, Authy, 1Password…).</div></div>' +
+      '<ol class="mfa-how"><li><span>Instala <b>Google Authenticator</b> en tu celular</span></li><li><span>Escanea el QR que te mostraremos</span></li><li><span>Escribe el primer código y listo</span></li></ol>' +
       '<div class="authlbl">Tu contraseña actual</div>' +
       '<input type="password" id="mfaPass" class="authinput" autocomplete="current-password" placeholder="••••••••">' +
-      '<button type="button" class="authbtn" id="mfaStart"><span id="mfaStartTxt">Activar</span></button>' + MSGS);
+      '<button type="button" class="authbtn" id="mfaStart"><span id="mfaStartTxt">Activar verificación</span></button>' + MSGS);
     $('mfaStart').addEventListener('click', startEnroll);
     $('mfaPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') startEnroll(); });
     addForcedLogout();
     return;
   }
   setBody(
-    '<div class="mfa-badge on">✅ Activa</div>' +
-    '<p class="mfa-p">Factor: <b id="mfaFName"></b><br><span id="mfaFDate" class="mfa-muted"></span></p>' +
+    '<div class="mfa-hero ok"><div class="mfa-hero-ico">' + ICON_SHIELD + '</div>' +
+    '<div class="mfa-hero-t">Cuenta protegida</div>' +
+    '<div class="mfa-hero-s">Factor: <b id="mfaFName"></b><br><span id="mfaFDate" class="mfa-muted"></span></div></div>' +
     '<p class="mfa-p mfa-muted">La verificación en dos pasos es obligatoria en esta app y no se puede desactivar. Si cambiaste de celular o perdiste el acceso, pide a un administrador que la restablezca.</p>' + MSGS);
   $('mfaFName').textContent = f.displayName || FACTOR_NAME;
   $('mfaFDate').textContent = f.enrollmentTime ? 'Activada el ' + new Date(f.enrollmentTime).toLocaleDateString() : '';
@@ -227,9 +272,11 @@ function addForcedLogout() {
 
 /** Tras activar el factor en modo obligatorio: volver a entrar con el código (así el token trae el segundo factor). */
 function finishForcedEnrollment() {
-  setBody('<div class="mfa-ok on">✅ Verificación en dos pasos activada.</div>' +
-    '<p class="mfa-p">Por seguridad debes iniciar sesión de nuevo; esta vez te pediremos el código de la app.</p>' +
-    '<button type="button" class="authbtn" id="mfaReLogin"><span>Iniciar sesión</span></button>');
+  setBody('<div class="mfa-done">' + ICON_CHECK +
+    '<div class="mfa-hero-t">¡Verificación activada!</div>' +
+    '<div class="mfa-hero-s">Por seguridad debes iniciar sesión de nuevo; esta vez te pediremos el código de la app.</div></div>' +
+    '<button type="button" class="authbtn" id="mfaReLogin"><span>Iniciar sesión</span></button>' +
+    '<div class="mfa-count" aria-hidden="true"><i></i></div>');
   const go = () => { _forced = false; closeMfaModal(); fbAuth.signOut(); };
   $('mfaReLogin').addEventListener('click', go);
   setTimeout(() => { if (_forced) go(); }, 6000);
@@ -237,7 +284,9 @@ function finishForcedEnrollment() {
 
 function renderVerifyEmail(user) {
   setBody(
-    '<p class="mfa-p">Para activar la verificación en dos pasos, Firebase exige que tu correo (<b id="mfaMail"></b>) esté verificado.</p>' +
+    '<div class="mfa-hero"><div class="mfa-hero-ico">' + ICON_SHIELD + '</div>' +
+    '<div class="mfa-hero-t">Verifica tu correo</div>' +
+    '<div class="mfa-hero-s">Para activar la verificación en dos pasos, Firebase exige que tu correo (<b id="mfaMail"></b>) esté verificado.</div></div>' +
     '<button type="button" class="authbtn" id="mfaSendMail"><span>Enviarme el correo de verificación</span></button>' +
     '<button type="button" class="authbtn mfa-ghost" id="mfaMailDone"><span>Ya lo verifiqué</span></button>' + MSGS);
   $('mfaMail').textContent = user.email;
@@ -271,35 +320,54 @@ async function startEnroll() {
 
 function renderEnrollStep(user, secret, Totp) {
   const uri = secret.generateQrCodeUrl(user.email, MFA_ISSUER);
-  const key = String(secret.secretKey || '').replace(/(.{4})/g, '$1 ').trim();
+  const rawKey = String(secret.secretKey || '');
+  const key = rawKey.replace(/(.{4})/g, '$1 ').trim();
   setBody(
-    '<p class="mfa-p"><b>1.</b> En tu celular abre Google Authenticator → <b>＋</b> → <b>Escanear código QR</b>.</p>' +
-    '<div class="mfa-qr" id="mfaQr"><span class="mfa-muted">Generando QR…</span></div>' +
-    '<p class="mfa-p mfa-muted">¿No puedes escanear? Elige “Ingresar clave de configuración” y escribe esta clave (tipo: basada en tiempo):</p>' +
-    '<code class="mfa-key" id="mfaSecret"></code>' +
-    '<p class="mfa-p"><b>2.</b> Escribe el código de 6 dígitos que aparece en la app:</p>' +
-    '<input type="text" id="mfaCode" class="authinput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">' +
+    '<div class="mfa-step"><span class="mfa-n">1</span><div class="mfa-step-b">' +
+      '<div class="mfa-step-t">Escanea el QR</div>' +
+      '<div class="mfa-step-s">En Google Authenticator toca <b>＋</b> y luego <b>Escanear código QR</b>.</div>' +
+      '<div class="mfa-qrbox"><div class="mfa-qr" id="mfaQr"><span class="mfa-muted">Generando QR…</span></div></div>' +
+      '<details class="mfa-manual"><summary>¿No puedes escanear?</summary>' +
+        '<p class="mfa-step-s">Elige “Ingresar clave de configuración” y escribe esta clave (tipo: basada en tiempo):</p>' +
+        '<div class="mfa-keyrow"><code class="mfa-key" id="mfaSecret"></code><button type="button" class="mfa-copy" id="mfaCopy">Copiar</button></div>' +
+      '</details>' +
+    '</div></div>' +
+    '<div class="mfa-step"><span class="mfa-n">2</span><div class="mfa-step-b">' +
+      '<div class="mfa-step-t">Escribe el código</div>' +
+      '<div class="mfa-step-s">Son 6 dígitos y cambian cada 30 segundos.</div>' +
+      otpHtml('mfaCode') +
+    '</div></div>' +
     '<button type="button" class="authbtn" id="mfaConfirm"><span>Confirmar y activar</span></button>' +
     '<button type="button" class="authbtn mfa-ghost" id="mfaCancel"><span>Cancelar</span></button>' + MSGS);
   $('mfaSecret').textContent = key;
+  $('mfaCopy').addEventListener('click', async () => {
+    const b = $('mfaCopy');
+    try { await navigator.clipboard.writeText(rawKey); b.textContent = 'Copiado ✓'; b.classList.add('done'); }
+    catch (e) { b.textContent = 'Selecciónala y copia'; }
+    setTimeout(() => { if ($('mfaCopy')) { b.textContent = 'Copiar'; b.classList.remove('done'); } }, 1800);
+  });
   loadQrLib().then((qrcode) => {
     const qr = qrcode(0, 'M'); qr.addData(uri); qr.make();
     const img = document.createElement('img');
     img.alt = 'Código QR para Google Authenticator';
-    img.src = qr.createDataURL(5, 2);
+    img.src = qr.createDataURL(6, 0);
     const box = $('mfaQr'); if (box) { box.textContent = ''; box.appendChild(img); }
   }).catch(() => {
     const box = $('mfaQr'); if (box) box.innerHTML = '<span class="mfa-muted">No se pudo generar el QR: usa la clave de abajo.</span>';
+    const d = document.querySelector('.mfa-manual'); if (d) d.open = true;
   });
-  $('mfaCode').focus();
-  $('mfaCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmEnroll(user, secret, Totp); });
+  const input = $('mfaCode');
+  bindOtp(input, () => confirmEnroll(user, secret, Totp));   // se confirma solo al escribir el 6.º dígito
+  input.focus();
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmEnroll(user, secret, Totp); });
   $('mfaConfirm').addEventListener('click', () => confirmEnroll(user, secret, Totp));
   $('mfaCancel').addEventListener('click', renderStatus);
 }
 
 async function confirmEnroll(user, secret, Totp) {
+  const btn = $('mfaConfirm'); if (!btn || btn.disabled) return;   // ya se está confirmando
   const code = $('mfaCode').value.trim();
-  if (!sixDigits(code)) { setMsg('err', 'Escribe el código de 6 dígitos de la app.'); return; }
+  if (!sixDigits(code)) { setMsg('err', 'Escribe el código de 6 dígitos de la app.'); failOtp($('mfaCode')); return; }
   busy(true, 'mfaConfirm'); setMsg('err', '');
   try {
     await user.multiFactor.enroll(Totp.assertionForEnrollment(secret, code), FACTOR_NAME);
@@ -310,5 +378,23 @@ async function confirmEnroll(user, secret, Totp) {
   } catch (e) {
     busy(false, 'mfaConfirm');
     setMsg('err', mapMfaError(e));
+    const i = $('mfaCode'); if (i) { setOtp(i, ''); failOtp(i); i.focus(); }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 3) Detalles del formulario de acceso (se enlazan al cargar la página)
+// ═══════════════════════════════════════════════════════════════════
+function initAuthUi() {
+  bindOtp($('authMfaCode'), () => doMfaChallenge());      // paso del código: casillas + envío automático
+  const t = $('authPassToggle'), p = $('authPass');        // ojo para ver/ocultar la contraseña
+  if (t && p) t.addEventListener('click', () => {
+    const show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    t.classList.toggle('on', show);
+    t.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    p.focus();
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAuthUi);
+else initAuthUi();
