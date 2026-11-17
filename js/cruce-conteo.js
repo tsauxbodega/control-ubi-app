@@ -334,9 +334,9 @@ function abrirImpresionEtiquetaConteo(a, b, plan, ubiTeoA, ubiTeoB){
     </style>
   </head><body>
     ${body}
-    <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},300);
 }
 
 function generarHTMLEtiquetaConteo(a, b, plan, ubiTeoA, ubiTeoB, preview){

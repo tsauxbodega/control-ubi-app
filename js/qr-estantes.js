@@ -1,3 +1,4 @@
+import { qrDataUrl } from './qr-local.js';
 import { ESTANTES, QR_SELECTED, QR_SEL_MODE } from './state-globals.js';
 import { escHtml, jsAttrSafe } from './utils.js';
 // ═══ js/qr-estantes.js — extraído de index.html (líneas 15278–15402 del original) ═══
@@ -21,7 +22,7 @@ function renderPanoQrCard(){
   if(!wrap)return;
   const base=getQRBaseURL();
   const url=`${base}?panorama=1`;
-  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(url)}&color=0d0d0d&bgcolor=ffffff&margin=6&qzone=1&format=png&ecc=M`;
+  const qrSrc=qrDataUrl(url,260);
   wrap.innerHTML=`<div style="display:flex;align-items:center;gap:14px;background:var(--bg2);border:1px solid rgba(192,57,43,.3);border-radius:10px;padding:12px 14px;flex-wrap:wrap">
     <img src="${qrSrc}" width="86" height="86" style="border-radius:6px;cursor:pointer;flex-shrink:0" loading="lazy" alt="QR Panorama General" onclick="openPanoramaModal()" title="Ver panorama general">
     <div style="flex:1;min-width:180px">
@@ -38,7 +39,7 @@ function renderPanoQrCard(){
 function printPanoramaQR(){
   const base=getQRBaseURL();
   const url=`${base}?panorama=1`;
-  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(url)}&color=0d0d0d&bgcolor=ffffff&margin=8&qzone=1&format=png&ecc=M`;
+  const qrSrc=qrDataUrl(url,600);
   const now=new Date().toLocaleString('es-CO');
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Panorama General Toyota</title>
@@ -56,9 +57,9 @@ function printPanoramaQR(){
     <div style="font-size:16px;font-weight:800;color:#111;letter-spacing:.03em;text-align:center">PANORAMA GENERAL</div>
     <div style="font-size:9px;color:#555;margin-top:2px">Escanear para ver totales</div>
   </div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),800);<\/script>
   </body></html>`);
   w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},800);
 }
 
 function getQRBaseURL(){
@@ -78,7 +79,7 @@ function renderEstQRGrid(){
   grid.classList.toggle('qr-sel-mode',QR_SEL_MODE);
   grid.innerHTML=ESTANTES.map(e=>{
     const url=`${base}?estante=${encodeURIComponent(e[0])}`;
-    const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}&color=0d0d0d&bgcolor=ffffff&margin=6&qzone=1&format=png&ecc=M`;
+    const qrSrc=qrDataUrl(url,300);
     const pct100=Math.round(e[4]*100);
     const bc=pctColor(e[4]);
     const estSafe=escHtml(e[0]);
@@ -101,7 +102,7 @@ function printEstQRSheet(){
   const now=new Date().toLocaleString('es-CO');
   const cards=ESTANTES.map(e=>{
     const url=`${base}?estante=${encodeURIComponent(e[0])}`;
-    const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(url)}&color=0d0d0d&bgcolor=ffffff&margin=8&qzone=1&format=png&ecc=M`;
+    const qrSrc=qrDataUrl(url,600);
     const pct100=Math.round(e[4]*100);
     return `<div style="display:inline-flex;flex-direction:column;align-items:center;border:2px solid #c0392b;border-radius:10px;padding:10px 12px;margin:8px;width:160px;page-break-inside:avoid">
       <div style="font-size:8px;color:#888;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">Toyota · Control UBI</div>
@@ -122,9 +123,9 @@ function printEstQRSheet(){
   <h1>🏢 QR Estantes — Toyota Control UBI</h1>
   <div class="meta">Generado: ${now} · ${ESTANTES.length} estantes · Escanear para auditoría rápida</div>
   <div class="grid">${cards}</div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),800);<\/script>
   </body></html>`);
   w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},800);
 }
 
 export { getQRBaseURL, printEstQRSheet, printPanoramaQR, renderEstQRGrid, toggleEstQrSection };

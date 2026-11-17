@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --experimental-vm-modules --no-warnings tests/boot.test.mjs && node worker/test/firebase-auth.test.mjs && node worker/test/worker-proxy.test.mjs",
+    "test": "node --experimental-vm-modules --no-warnings tests/boot.test.mjs && BOOT_NO_MFA=1 node --experimental-vm-modules --no-warnings tests/boot.test.mjs && node tests/security.test.mjs && node worker/test/firebase-auth.test.mjs && node worker/test/worker-proxy.test.mjs",
     "test:dist": "node --experimental-vm-modules --no-warnings tests/boot.test.mjs dist"
   },
   "devDependencies": { "esbuild": "^0.25.0", "jsdom": "^24.1.0" }

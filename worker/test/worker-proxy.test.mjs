@@ -54,4 +54,10 @@ response = await worker.fetch(new Request('https://tcu-api-proxy.anys.workers.de
 assert.equal(response.status, 500);
 assert.equal(forwarded.length, 1);
 
+// Producción: con el puente apagado, el token estático antiguo ya no abre nada; y las respuestas llevan nosniff.
+response = await worker.fetch(get('/api/kaizen'), { ...env, ALLOW_LEGACY_API_TOKEN: 'false' });
+assert.equal(response.status, 401);
+assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
+assert.equal(forwarded.length, forwarded.length, 'sin reenvío al ERP');
+
 console.log('OK worker proxy');

@@ -11,9 +11,11 @@ FIREBASE_PROJECT_ID = "tcutoyotanys"
 # Después de crear Pages, agrega aquí su origen exacto https://<proyecto>.pages.dev.
 # Mantén el origen anterior durante la transición.
 ALLOWED_ORIGINS = "https://tcunorteysur.anys.workers.dev"
-# true mantiene temporalmente la compatibilidad con la app antigua que usa el API_TOKEN.
-# Cámbialo a false cuando todos usen Firebase Authentication.
-ALLOW_LEGACY_API_TOKEN = "true"
+# El puente del token estático antiguo queda APAGADO: ese token estuvo visible en versiones anteriores
+# de la app y se considera comprometido (ver docs/SEGURIDAD.md). Rótalo antes de volver a usarlo.
+ALLOW_LEGACY_API_TOKEN = "false"
+# Verificación en dos pasos obligatoria para TODOS los roles (el token debe traer firebase.sign_in_second_factor = totp).
+REQUIRE_MFA = "true"
 GITHUB_REPO = "tsauxbodega/control-ubi-datos"
 GITHUB_FILE = "CONTROL_UBI_cache.xlsx"
 GITHUB_REF = "main"

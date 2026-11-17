@@ -10,7 +10,7 @@ Esta preparación conserva el Worker `tcu-api-proxy` existente y el VPC Service 
 - Secreto existente: `API_TOKEN` (se conserva como secreto del Worker y solo se reenvía al servicio privado).
 - Proyecto Firebase: `tcutoyotanys`.
 - Excel: `tsauxbodega/control-ubi-datos/CONTROL_UBI_cache.xlsx`, rama `main`.
-- Compatibilidad transitoria: `ALLOW_LEGACY_API_TOKEN = "true"` permite temporalmente el token antiguo mientras se migra a ID tokens de Firebase.
+- `ALLOW_LEGACY_API_TOKEN = "false"`: el token estático antiguo ya no abre nada. `REQUIRE_MFA = "true"`: todos los usuarios deben entrar con Google Authenticator (ver `docs/SEGURIDAD.md`, secciones 4 y 6).
 
 ## Antes de desplegar
 
@@ -39,7 +39,7 @@ En Workers & Pages → Create application → Pages → Connect to Git:
 
 - Root directory: raíz del repositorio (donde está `package.json`).
 - Build command: `npm run build`.
-- Build output directory: `dist`.
+- Build output directory: `dist` (incluye `_headers` con la política de seguridad: no lo quites).
 - Framework preset: None.
 
 El frontend ya apunta a `https://tcu-api-proxy.anys.workers.dev` en `js/config.js`.
@@ -54,9 +54,9 @@ El frontend ya apunta a `https://tcu-api-proxy.anys.workers.dev` en `js/config.j
 
 ## Cerrar la transición
 
-Cuando la app anterior ya no se utilice:
+El puente antiguo ya viene apagado (`ALLOW_LEGACY_API_TOKEN = "false"`). Falta:
 
-1. Cambia `ALLOW_LEGACY_API_TOKEN` a `false` y vuelve a desplegar.
+1. Publicar `firestore.rules` (Firebase Console → Firestore → Reglas) tras probarlas en el simulador.
 2. Rota el token que usa el servicio local y actualiza `API_TOKEN` como Secret del Worker con el nuevo valor.
 3. Confirma que ningún cliente antiguo dependa del token estático.
 

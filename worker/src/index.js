@@ -13,7 +13,7 @@ function corsHeaders(request, env) {
 
   const headers = {
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-token',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
     'Access-Control-Expose-Headers': 'ETag, Last-Modified, Content-Length',
     'Vary': 'Origin',
@@ -32,6 +32,7 @@ function jsonError(message, status, cors) {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
       ...cors,
     },
   });
@@ -83,10 +84,10 @@ export default {
     }
 
     if (!env.API_TOKEN) {
-      return jsonError('Falta configurar el secreto API_TOKEN del servicio interno', 500, cors);
+      return jsonError('Servicio no disponible', 500, cors);
     }
     if (!env.PRIVATE_API || typeof env.PRIVATE_API.fetch !== 'function') {
-      return jsonError('Falta configurar el binding PRIVATE_API', 500, cors);
+      return jsonError('Servicio no disponible', 500, cors);
     }
 
     // Se conserva el VPC Service actual. El navegador nunca envía API_TOKEN al ERP;
@@ -115,6 +116,7 @@ export default {
         response.headers.set(key, value);
       }
       response.headers.set('Cache-Control', 'no-store');
+      response.headers.set('X-Content-Type-Options', 'nosniff');
       return response;
     } catch (error) {
       if (error?.name === 'AbortError') {
