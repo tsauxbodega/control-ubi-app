@@ -43,7 +43,14 @@ assert.ok(!/\bx-api-token\b/i.test(rd('worker/src/index.js')), 'el Worker no deb
 assert.ok(!/ALLOWED_ORIGINS\s*=\s*"[^"]*\*/.test(toml), 'ALLOWED_ORIGINS no puede llevar *'); ok();
 // 8) Reglas de Firestore: segundo factor + denegar por defecto.
 const rules = rd('firestore.rules'); assert.ok(rules.includes("sign_in_second_factor == 'totp'")); assert.match(rules, /match \/\{document=\*\*\}\s*\{\s*allow read, write:\s*if false;/);
-assert.ok(!/allow [^;]*:\s*if true/.test(rules.replace(/\/\/.*$/gm, '')), 'las reglas no deben tener "if true"'); ok();
+{ // Lo único público permitido: `get` (documento suelto, no `list`) de los resúmenes de QR; todo lo demás exige sesión.
+  const body = rules.replace(/\/\/.*$/gm, '');
+  const pub = [...body.matchAll(/allow ([^:;]*):\s*if true/g)].map(m => m[1].trim());
+  assert.deepStrictEqual(pub, ['get', 'get'], 'solo `allow get: if true` (x2: estante_snapshots y panorama_snapshot)');
+  for (const col of ['estante_snapshots', 'panorama_snapshot']) assert.match(body, new RegExp(col + '/\\{docId\\}\\s*\\{\\s*allow get: if true;'));
+  assert.ok(/allow create, update, delete: if activo\(\) && \(docId != 'precio_divisores' \|\| esAdmin\(\)\)/.test(body), 'precio_divisores solo admin');
+  for (const col of ['mant_combos', 'cotizaciones_historial']) assert.ok(body.includes('match /' + col + '/'), col + ' debe tener regla (si no, queda denegada y la app falla)');
+} ok();
 // 9) Librerías locales íntegras (firmas SHA-256).
 for (const l of rd('vendor/SHA256SUMS').trim().split('\n')) { const [h, f] = l.split(/\s+/); assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, 'vendor', f))).digest('hex'), h, 'vendor/' + f + ' fue modificado'); } ok();
 // 10) Build de producción: sin console.*, sin mapas de código, con cabeceras y vendor.

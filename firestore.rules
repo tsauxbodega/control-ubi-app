@@ -1,14 +1,16 @@
 rules_version = '2';
 
-// Reglas de Firestore de Control UBI.  PUBLICAR: Firebase Console → Firestore → Reglas  (o `firebase deploy --only firestore:rules`).
-// PRUEBA PRIMERO en el "Simulador de reglas" de la consola: este archivo se escribió leyendo el código de la app, no se ejecutó contra Firebase.
+// Reglas de Firestore de Control UBI.
+// PUBLICAR: Firebase Console → Firestore → Reglas  (o `firebase deploy --only firestore:rules`).
+// Probadas con el emulador de Firestore: ver tests/firestore.rules.test.mjs (se escribieron leyendo el código de la app).
 //
 // Principios
-//  1. Todo exige sesión CON segundo factor (Google Authenticator): el token trae firebase.sign_in_second_factor = "totp".
-//     Así, aunque alguien se salte el aviso de la pantalla, el servidor no le entrega nada.
-//  2. Todo exige además un usuario ACTIVO registrado en /usuarios.
-//  3. Solo un admin crea, cambia el rol/estado/sede o borra usuarios. Nadie puede subirse el rol a sí mismo.
-//  4. Lo que no está listado abajo queda denegado.
+//  1. Todo lo privado exige sesión CON segundo factor (Google Authenticator): el token trae
+//     firebase.sign_in_second_factor = "totp". Aunque alguien se salte la pantalla, el servidor no le entrega nada.
+//  2. Además exige un usuario ACTIVO registrado en /usuarios (cuenta desactivada = sin acceso a datos).
+//  3. Solo un admin crea, cambia rol/sede/estado o borra usuarios. Nadie puede subirse el rol.
+//  4. Los precios divisores (que mueven los precios de venta) solo los escribe un admin.
+//  5. Lo que no está listado abajo queda denegado.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -19,7 +21,7 @@ service cloud.firestore {
                            && perfil().get('activo', true) != false; }
     function esAdmin() { return activo() && perfil().rol == 'admin'; }
 
-    // Perfiles: cada quien lee el suyo (también si está desactivado, para poder avisarle); el admin gestiona todos.
+    // Perfiles: cada quien lee el suyo (aunque esté desactivado, para poder avisarle); el admin gestiona todos.
     match /usuarios/{uid} {
       allow get: if mfaOk() && (request.auth.uid == uid || esAdmin());
       allow list, create, update, delete: if esAdmin();
@@ -30,16 +32,31 @@ service cloud.firestore {
       }
     }
 
-    // Datos compartidos del equipo (divisores de precio, historial del cotizador).
-    // Si quieres que solo admin/supervisor cambien los divisores: separa `precio_divisores` y exige perfil().rol in ['admin','supervisor'].
+    // Datos compartidos del equipo (historial y consecutivo del cotizador, clientes, lista de reubicaciones…).
     match /equipo/{docId} {
-      allow read, write: if activo();
+      allow read: if activo();
+      // Los divisores de precio solo los cambia un admin (así lo exige también la pantalla).
+      allow create, update, delete: if activo() && (docId != 'precio_divisores' || esAdmin());
     }
 
-    // Resúmenes de estantes/panorama que usan los QR.
-    // Ya NO son públicos: ver las instrucciones de docs/SEGURIDAD.md si se quisiera una vista para invitados (no recomendado).
-    match /estante_snapshots/{docId}  { allow read, write: if activo(); }
-    match /panorama_snapshot/{docId}  { allow read, write: if activo(); }
+    // Mantenimientos (combos) y cotizaciones (colección heredada): cualquier usuario activo.
+    match /mant_combos/{docId}            { allow read, write: if activo(); }
+    match /cotizaciones_historial/{docId} { allow read, write: if activo(); }
+
+    // Resúmenes de estantes/panorama para los QR pegados en bodega. Solo traen ubicación, referencia, stock y conteos
+    // (nunca costos ni precios). Las ESCRITURAS exigen usuario activo con MFA.
+    // La LECTURA de un documento suelto (`get`) sigue pública para que el QR funcione sin iniciar sesión,
+    // pero NO se puede listar la colección. Si quieres cerrarlo del todo: cambia `if true` por `if activo()` en las dos líneas `allow get`.
+    match /estante_snapshots/{docId} {
+      allow get: if true;
+      allow list: if activo();
+      allow create, update, delete: if activo();
+    }
+    match /panorama_snapshot/{docId} {
+      allow get: if true;
+      allow list: if activo();
+      allow create, update, delete: if activo();
+    }
 
     match /{document=**} { allow read, write: if false; }
   }
