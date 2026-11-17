@@ -175,6 +175,13 @@
             <span class="omi-body"><span class="omi-text">Gestionar combinaciones</span></span>
           </button>
         </div>
+        <div class="opt-menu-section mfa-opt" data-accent="cyan">
+          <div class="opt-menu-label">Seguridad</div>
+          <button class="opt-menu-item" onclick="openMfaModal();closeOptionsMenu()">
+            <span class="omi-icon omi-icon--cyan">🛡️</span>
+            <span class="omi-body"><span class="omi-text">Verificación en dos pasos</span><span class="omi-sub">Google Authenticator · obligatoria</span></span>
+          </button>
+        </div>
         <div class="opt-menu-section" data-accent="amber" id="optMenuAdminSection">
           <div class="opt-menu-label">Administración</div>
           <button class="opt-menu-item opt-menu-item--warn" onclick="syncERPFromSQL(this)">
