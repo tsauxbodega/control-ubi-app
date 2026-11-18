@@ -61,3 +61,6 @@ assert.ok(!/sourceMappingURL/.test(app) && !fs.readdirSync(path.join(root, 'dist
 for (const f of ['_headers', 'vendor/xlsx.full.min.js', 'vendor/qrcode.js', 'vendor/fonts/ibm-plex-sans-latin-400-normal.woff2']) assert.ok(fs.existsSync(path.join(root, 'dist', f)), 'dist sin ' + f);
 const dist = walk('dist'); assert.ok(!dist.some((f) => /\.(md|mjs|toml|rules)$/.test(f) || f.includes('worker') || f.includes('docs') || f.includes('tests')), 'dist publica archivos internos'); ok();
 console.log(`OK seguridad (${n} grupos de comprobaciones)`);
+
+// 11) Service worker: no debe interceptar peticiones de otros orígenes (su CSP bloquea gstatic y dejaba la app colgada en el arranque).
+{ const sw = rd('sw.js'); assert.match(sw, /new URL\(url\)\.origin !== self\.location\.origin\) return;/, 'el SW debe dejar pasar lo que no es de este sitio'); ok(); }
