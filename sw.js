@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Vive junto a index.html (raíz del sitio). Al cambiar el listado STATIC o la estrategia, sube el número de CACHE.
 // ─────────────────────────────────────────────────────────────────────────
-const CACHE  = 'control-ubi-v14';
+const CACHE  = 'control-ubi-v15';
 const STATIC = [
   './',
   'css/app.css',
@@ -105,9 +105,15 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-
-  // Datos dinámicos → siempre red, nunca caché
   const url = e.request.url;
+
+  // Todo lo que NO es de este sitio (scripts de Firebase en gstatic, Firestore, Auth, el Worker…) lo resuelve el navegador
+  // directamente. NO se intercepta: el fetch() de un service worker se rige por el connect-src de su propia CSP y rechazaba
+  // https://www.gstatic.com/firebasejs/… (la app se quedaba en "Verificando sesión…" desde la 2.ª carga, ya con el SW activo),
+  // y además cortaba los flujos largos de Firestore (WebChannel).
+  if (new URL(url).origin !== self.location.origin) return;
+
+  // Archivos de datos propios → siempre red, nunca caché
   if (NO_CACHE_PATTERNS.some(p => url.includes(p))) {
     e.respondWith(
       fetch(e.request, { cache: 'no-store' }).catch(() => new Response('', { status: 503 }))
@@ -115,11 +121,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Documento principal (el HTML de la app) → RED PRIMERO, con la caché
-  // solo como respaldo si no hay conexión. Antes era "caché primero" para
-  // todo, incluido este documento — por eso un celular que ya tenía la app
-  // instalada seguía viendo la versión vieja para siempre después de cada
-  // actualización, aunque el archivo en Netlify ya estuviera al día.
+  // Documento principal (el HTML de la app) → RED PRIMERO, con la caché solo como respaldo sin conexión.
   const isNavigation = e.request.mode === 'navigate' ||
     (e.request.headers.get('accept') || '').includes('text/html');
   if (isNavigation) {
@@ -136,27 +138,10 @@ self.addEventListener('fetch', e => {
   }
 
   // Archivos propios (js/css/imágenes) → RED PRIMERO, caché de respaldo sin conexión.
-  // Con "caché primero" una actualización de js/*.js no llegaría nunca a quien ya tiene la app.
-  if (new URL(url).origin === self.location.origin) {
-    e.respondWith(
-      fetch(e.request).then(res => {
-        if (res && res.status === 200) { const clone = res.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
-        return res;
-      }).catch(() => caches.match(e.request).then(c => c || new Response('', { status: 503 })))
-    );
-    return;
-  }
-
-  // Resto de archivos estáticos (librerías externas) → caché primero, igual que antes.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (!res || res.status !== 200) return res;
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return res;
-      });
-    }).catch(() => new Response('', { status: 503 }))
+    fetch(e.request).then(res => {
+      if (res && res.status === 200) { const clone = res.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
+      return res;
+    }).catch(() => caches.match(e.request).then(c => c || new Response('', { status: 503 })))
   );
 });
