@@ -1,11 +1,10 @@
 /* Vigilante de arranque (script clásico, SIN imports: corre aunque el resto de la app no cargue).
- * Si la pantalla "Verificando sesión…" sigue ahí pasados ~9 s, algo del arranque quedó colgado (típico: la base local
- * de Firebase Auth en el navegador). Entonces: (1) la primera vez en esa pestaña se limpia sola la sesión local y se
- * recarga; (2) si vuelve a pasar, se muestran botones para reintentar o restablecer a mano.
- * Solo toca datos LOCALES del navegador (sesión de Firebase, service worker y cachés): nunca datos de la nube. */
+ * Si la pantalla "Verificando sesión…" sigue ahí pasados ~9 s, algo del arranque quedó colgado: se muestra en qué paso
+ * quedó y dos botones (reintentar / restablecer la sesión local). NO limpia nada por sí solo: una red lenta no debe
+ * cerrarle la sesión a nadie. Solo toca datos LOCALES del navegador (sesión de Firebase, service worker y cachés). */
 (function () {
   'use strict';
-  var WAIT_MS = 9000, FLAG = 'ubi_autoheal', stage = 'esperando a Firebase Auth';
+  var WAIT_MS = 9000, stage = 'esperando a Firebase Auth';
   window.__bootMark = function (s) { stage = s; };
 
   function stuck() {
@@ -44,14 +43,7 @@
     row.appendChild(btn('Restablecer sesión local', true, function () { heal(true); }));
     box.appendChild(row); ld.appendChild(box);
   }
-  function check() {
-    if (!stuck()) return;
-    var done = false; try { done = sessionStorage.getItem(FLAG) === '1'; } catch (e) {}
-    if (!done) { try { sessionStorage.setItem(FLAG, '1'); } catch (e) {} heal(false); return; }
-    showPanel();
-  }
+  function check() { if (stuck()) showPanel(); }
   function arm() { setTimeout(check, WAIT_MS); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arm); else arm();
-  // Un arranque sano limpia la marca para que la próxima vez vuelva a haber un auto-arreglo.
-  window.addEventListener('load', function () { setTimeout(function () { if (!stuck()) { try { sessionStorage.removeItem(FLAG); } catch (e) {} } }, WAIT_MS + 3000); });
 })();
