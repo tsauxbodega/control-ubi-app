@@ -141,7 +141,9 @@ function watchOwnUserDoc(){
     }
   });
 }
+const bootMark = (s)=>{ try{ window.__bootMark && window.__bootMark(s); }catch(e){} };
 fbAuth.onAuthStateChanged(async (user)=>{
+  bootMark('comprobando la sesión guardada');
   if(!user){
     set__authResolved(true);
     set_CURRENT_USER( null);
@@ -169,6 +171,7 @@ fbAuth.onAuthStateChanged(async (user)=>{
   // Firestore) hasta inscribirlo. Al terminar, la sesión se cierra para volver a entrar CON el
   // código — así el token trae la marca de segundo factor que exigen el Worker y las reglas.
   // (Esto es la parte visible; lo que de verdad protege es que el servidor rechaza tokens sin ella.)
+  bootMark('verificación en dos pasos');
   if(!userHasTotp(user)){
     set__authResolved(true);
     set_CURRENT_USER(null);
@@ -199,6 +202,7 @@ fbAuth.onAuthStateChanged(async (user)=>{
     // de red (sin forzar signOut — la sesión sigue siendo válida, solo no
     // pudimos confirmarla ahora) y se libera _authResolved para que el resto
     // de la app (p.ej. el modal QR) deje de esperar y siga su propio camino.
+    bootMark('leyendo tu perfil en Firestore');
     const snap = await Promise.race([
       db.collection('usuarios').doc(user.uid).get(),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout-usuarios-doc')),timeoutMs))
