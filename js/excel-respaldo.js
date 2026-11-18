@@ -189,9 +189,32 @@ function retrySQLNow(btn){
   loadInvFromSQL(false).finally(()=>{ if(btn){ btn.disabled=false; btn.textContent='Reintentar SQL ahora'; } });
 }
 
+// Lectura rápida del libro. SheetJS, por defecto, interpreta TODAS las hojas (incluidas las heredadas que la app ya
+// no usa) y guarda fórmulas/estilos/formatos que nadie lee: eso es lo que más tarda. Aquí se leen solo los nombres
+// de hoja (instantáneo), después únicamente las hojas que processExcel() consume y en modo "denso" (menos memoria).
+// Los datos resultantes son idénticos (sheet_to_json devuelve lo mismo). En modo respaldo-Excel hacen falta las hojas
+// de stock, así que ahí se lee todo como antes.
+const EXCEL_SHEETS_USED = [
+  ['PRECIOS_DATA','PRECIOS','PRICES','LISTA PRECIOS'],
+  ['UBITEORICAS','UBI TEORICAS','UBICACIONES TEORICAS'],
+  ['DASH_ESTANTES','DASHBOARD ESTANTES'],
+  ['SM','STOCK_MUERTO','STOCK MUERTO'],
+  ['PERFILES_ESTANTES','PERFILES ESTANTES','SHELF_PROFILES']
+];
+function readWorkbook(buf){
+  const base={type:'array',dense:true,cellFormula:false,cellHTML:false,cellStyles:false,cellNF:false};
+  if(_wantExcelInv) return XLSX.read(buf,{...base,dense:false,cellFormula:true,cellStyles:true,cellNF:true}); // modo respaldo: igual que siempre
+  try{
+    const names=XLSX.read(buf,{type:'array',bookSheets:true}).SheetNames||[];
+    const want=EXCEL_SHEETS_USED.map(c=>findSheetName(names,c)).filter(Boolean);
+    if(want.length) return XLSX.read(buf,{...base,sheets:want});
+  }catch(e){ /* si algo raro pasa, se cae a la lectura completa de siempre */ }
+  return XLSX.read(buf,{type:'array'});
+}
+
 function processExcel(buf, fname, isSilent = false) {
   try{
-    const wb=XLSX.read(buf,{type:'array'});
+    const wb=readWorkbook(buf);
     const sheets=wb.SheetNames;
     prog(10);
     // ── Radar de Cambios: capturar snapshot ANTES de limpiar datos ──
