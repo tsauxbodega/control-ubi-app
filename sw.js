@@ -2,10 +2,11 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Vive junto a index.html (raíz del sitio). Al cambiar el listado STATIC o la estrategia, sube el número de CACHE.
 // ─────────────────────────────────────────────────────────────────────────
-const CACHE  = 'control-ubi-v13';
+const CACHE  = 'control-ubi-v14';
 const STATIC = [
   './',
   'css/app.css',
+  'js/boot-guard.js',
   'js/main.js',
   'manifest.json',
   'icon-192.png',
