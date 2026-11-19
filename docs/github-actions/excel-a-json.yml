@@ -1,0 +1,48 @@
+# Cópialo al repositorio PRIVADO de datos (tsauxbodega/control-ubi-datos) como:  .github/workflows/excel-a-json.yml
+# Cada vez que se sube un CONTROL_UBI_cache.xlsx nuevo, GitHub lo convierte a CONTROL_UBI_cache.json (rama datos-json) con la
+# misma lógica de la app. El Worker de Cloudflare lo sirve en /api/excel-json y la app lo prefiere al .xlsx.
+name: Excel a JSON
+on:
+  push:
+    branches: [main]
+    paths: ['CONTROL_UBI_cache.xlsx']
+  workflow_dispatch:
+
+permissions:
+  contents: write          # para guardar el .json en este mismo repositorio
+
+concurrency:
+  group: excel-a-json
+  cancel-in-progress: true
+
+jobs:
+  convertir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4                       # este repositorio (datos)
+      - uses: actions/checkout@v4                       # el código del conversor (repositorio público de la app)
+        with:
+          repository: tsauxbodega/control-ubi-app
+          ref: main                                     # recomendado: fija una etiqueta o un SHA (p. ej. v1) para que el conversor no cambie solo
+          path: app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Convertir
+        run: |
+          mkdir -p "$RUNNER_TEMP/publicar"
+          node app/tools/excel-a-json.mjs CONTROL_UBI_cache.xlsx "$RUNNER_TEMP/publicar/CONTROL_UBI_cache.json"
+      - name: Publicar el JSON en la rama datos-json (sin historial)
+        # Rama aparte con UN solo commit que se reemplaza cada vez: el JSON no engorda el historial del repositorio.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cd "$RUNNER_TEMP/publicar"
+          git init -q -b datos-json
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CONTROL_UBI_cache.json
+          git commit -q -m "JSON generado desde ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" datos-json
