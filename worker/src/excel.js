@@ -7,7 +7,7 @@ export async function excelFromGithub(request, env, extraHeaders = {}, kind = 'x
   const file = kind === 'json' ? (env.GITHUB_JSON_FILE || String(env.GITHUB_FILE || '').replace(/\.xlsx$/i, '') + '.json') : env.GITHUB_FILE;
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPO || !file) return new Response(JSON.stringify({ error: 'Excel no configurado' }), { status: 500, headers: { 'Content-Type': 'application/json', ...extraHeaders } });
   const head = request.method === 'HEAD';
-  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/contents/${file}?ref=${encodeURIComponent(env.GITHUB_REF || 'main')}`;
+  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/contents/${file}?ref=${encodeURIComponent(kind === 'json' ? (env.GITHUB_JSON_REF || 'datos-json') : (env.GITHUB_REF || 'main'))}`;
   let r;
   try {
     r = await fetch(url, {

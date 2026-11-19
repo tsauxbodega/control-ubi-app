@@ -67,7 +67,7 @@ assert.equal(forwarded.length, 1);
   assert.match(j.headers.get('Content-Type'), /application\/json/);
   assert.equal(j.headers.get('etag'), '"abc"');
   assert.equal(j.headers.get('content-length'), null, 'el JSON viaja comprimido por Cloudflare: no se copia el tamaño de origen');
-  assert.ok(asked[0].u.includes('/contents/CONTROL_UBI_cache.json?ref=main'), 'pide el .json hermano: ' + asked[0].u);
+  assert.ok(asked[0].u.includes('/contents/CONTROL_UBI_cache.json?ref=datos-json'), 'pide el .json de la rama datos-json: ' + asked[0].u);
   assert.ok(asked[1].u.includes('/contents/CONTROL_UBI_cache.xlsx?ref=main') && asked[1].method === 'HEAD');
   assert.equal(x.headers.get('content-length'), '999');
   assert.equal(forwarded.length, 1, 'ninguna de las dos rutas toca el ERP');
