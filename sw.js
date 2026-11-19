@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Vive junto a index.html (raíz del sitio). Al cambiar el listado STATIC o la estrategia, sube el número de CACHE.
 // ─────────────────────────────────────────────────────────────────────────
-const CACHE  = 'control-ubi-v15';
+const CACHE  = 'control-ubi-v16';
 const STATIC = [
   './',
   'css/app.css',
@@ -24,6 +24,8 @@ const STATIC = [
   'js/precios-divisor.js',
   'js/inventario-sql.js',
   'js/excel-respaldo.js',
+  'js/excel-parse.js',
+  'js/excel-worker-client.js',
   'js/ui-header-tabs.js',
   'js/buscador.js',
   'js/precios.js',

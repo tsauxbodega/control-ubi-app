@@ -59,7 +59,7 @@ const app = fs.readFileSync(path.join(root, 'dist/js/app.js'), 'utf8');
 assert.ok(!/console\.(log|warn|error|info|debug)/.test(app), 'el build de producción aún trae console.*');
 assert.ok(!/sourceMappingURL/.test(app) && !fs.readdirSync(path.join(root, 'dist/js')).some((f) => f.endsWith('.map')), 'no se publican mapas de código');
 for (const f of ['_headers', 'vendor/xlsx.full.min.js', 'vendor/qrcode.js', 'vendor/fonts/ibm-plex-sans-latin-400-normal.woff2']) assert.ok(fs.existsSync(path.join(root, 'dist', f)), 'dist sin ' + f);
-const dist = walk('dist'); assert.ok(!dist.some((f) => /\.(md|mjs|toml|rules)$/.test(f) || f.includes('worker') || f.includes('docs') || f.includes('tests')), 'dist publica archivos internos'); ok();
+const dist = walk('dist'); assert.ok(!dist.some((f) => /\.(md|mjs|toml|rules)$/.test(f) || /(^|[\\/])worker[\\/]/.test(f) || f.includes('docs') || f.includes('tests')), 'dist publica archivos internos'); ok();
 console.log(`OK seguridad (${n} grupos de comprobaciones)`);
 
 // 11) Service worker: no debe interceptar peticiones de otros orígenes (su CSP bloquea gstatic y dejaba la app colgada en el arranque).

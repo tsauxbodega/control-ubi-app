@@ -1,7 +1,8 @@
 import { apiFetch } from './api.js';
 import { INV, PRICES } from './state-globals.js';
 import { loadInvFromSQL } from './inventario-sql.js';
-import { INV_SOURCE, _wantExcelInv, processExcel, showFallbackBanner } from './excel-respaldo.js';
+import { INV_SOURCE, _wantExcelInv, applyExcelData, processExcel, showFallbackBanner } from './excel-respaldo.js';
+import { EXCEL_DATA_VERSION } from './excel-parse.js';
 import { handleQRParam } from './radar-cambios.js';
 import { closeOptionsMenu } from './pwa-ui.js';
 // ═══ js/autoload-excel.js — extraído de index.html (líneas 10981–11198 del original) ═══
@@ -9,6 +10,11 @@ import { closeOptionsMenu } from './pwa-ui.js';
 // ===================== AUTO-LOAD & FRESCURA =====================
 // El Excel ya NO se baja directo de GitHub: lo sirve el Worker (autenticado) desde un repositorio privado.
 const EXCEL_PATH='/api/excel';
+// El mismo libro ya convertido a JSON por GitHub Actions (tools/excel-a-json.mjs): no hay que interpretar el .xlsx en cada
+// dispositivo, así que baja menos y carga mucho más rápido. Si no existe (404), está desactualizado respecto al .xlsx o
+// falla, se usa el .xlsx de siempre (leído en un Web Worker).
+const EXCEL_JSON_PATH='/api/excel-json';
+const EXCEL_JSON_META_KEY='ctrl_ubi_excel_json_meta';
 const RELOAD_INTERVAL=5*60*1000; // comprueba cambios cada 5 min
 const EXCEL_META_KEY='ctrl_ubi_excel_meta'; // persiste ETag/Last-Modified/tamaño ENTRE pestañas
 let _lastExcelSize=0;
@@ -89,6 +95,63 @@ function startFreshTicker(){
 }
 
 // --- Auto-carga principal ---
+let _jsonOffUntil=0;   // si el servidor no tiene JSON (o no sirve), no insistir durante un rato
+let _jm=(()=>{ try{ return JSON.parse(localStorage.getItem(EXCEL_JSON_META_KEY)||'{}')||{}; }catch(e){ return {}; } })();
+function saveJsonMeta(){ try{ localStorage.setItem(EXCEL_JSON_META_KEY, JSON.stringify(_jm)); }catch(e){} }
+
+// ¿El JSON corresponde al .xlsx que hay HOY en el repositorio? Si GitHub Actions falló o aún está convirtiendo, no:
+// entonces se usa el .xlsx para no mostrar datos viejos sin avisar. Compara tamaño y, si el ETag del .xlsx tiene forma
+// de hash de GitHub (40 hex), también ese hash; sin información suficiente confía en el JSON.
+async function jsonMatchesXlsx(src){
+  if(!src) return true;
+  try{
+    const h=await apiFetch(EXCEL_PATH+'?_='+Date.now(),{method:'HEAD'});
+    if(!h.ok) return true;
+    const etag=(h.headers.get('etag')||'').replace(/^W\//,'').replace(/"/g,'');
+    const size=parseInt(h.headers.get('content-length')||'0');
+    if(src.bytes>0 && size>0 && src.bytes!==size) return false;
+    if(/^[0-9a-f]{40}$/i.test(etag) && src.sha && etag.toLowerCase()!==String(src.sha).toLowerCase()) return false;
+    return true;
+  }catch(e){ return true; }
+}
+
+// Devuelve true si los datos quedaron al día por esta vía (aplicados o confirmados sin cambios); false = usar el .xlsx.
+async function tryLoadExcelJson(silent){
+  if(Date.now()<_jsonOffUntil) return false;
+  try{
+    const head=await apiFetch(EXCEL_JSON_PATH+'?_='+Date.now(),{method:'HEAD'});
+    if(!head.ok){ _jsonOffUntil=Date.now()+(head.status===404?30:5)*60000; return false; }
+    const etag=head.headers.get('etag')||'', modified=head.headers.get('last-modified')||'';
+    const same=!!(etag||modified) && (!etag||etag===_jm.etag) && (!modified||modified===_jm.modified);
+    const unchanged=same && INV.length>0 && Object.keys(PRICES).length>0
+                    && !(_wantExcelInv && INV_SOURCE!=='excel')
+                    && _jm.okTs>0 && (Date.now()-_jm.okTs) < EXCEL_MAX_STALE_H*3600000;
+    if(unchanged){
+      if(!(await jsonMatchesXlsx(_jm.src))){ _jsonOffUntil=Date.now()+2*60000; return false; }
+      _lastVerifiedTs=Date.now(); saveExcelMeta(); updateFreshBadge(null);
+      handleQRParam();
+      return true;
+    }
+    if(!silent){autobar(15);}
+    const resp=await apiFetch(EXCEL_JSON_PATH+'?v='+Date.now());
+    if(!resp.ok){ _jsonOffUntil=Date.now()+5*60000; return false; }
+    if(!silent){autobar(50);}
+    const data=await resp.json();
+    if(!data || data.v!==EXCEL_DATA_VERSION || !Array.isArray(data.prices)){ _jsonOffUntil=Date.now()+30*60000; return false; }
+    if(!(await jsonMatchesXlsx(data.src))){ _jsonOffUntil=Date.now()+2*60000; return false; }
+    if(!silent){autobar(80);}
+    const ok=applyExcelData(data,'CONTROL_UBI_AUTO.json',true,{version:'j:'+((data.src&&data.src.sha)||etag||modified)});
+    if(!ok) return false;
+    _jm={etag,modified,okTs:Date.now(),src:data.src||null}; saveJsonMeta();
+    _lastVerifiedTs=Date.now(); _lastExcelOkTs=Date.now();
+    _lastExcelModified=(data.src&&data.src.modified)||modified||_lastExcelModified;
+    saveExcelMeta();
+    if(!silent){setTimeout(()=>autobar(0),600);}
+    handleQRParam();
+    return true;
+  }catch(e){ return false; }
+}
+
 async function autoLoadExcel(silent=false){
   // Metadatos previos: si la descarga o el procesamiento fallan, se restauran
   // para que el siguiente ciclo (5 min) vuelva a intentarlo. Antes se
@@ -97,6 +160,8 @@ async function autoLoadExcel(silent=false){
   const _prevMeta = {etag:_lastExcelETag, modified:_lastExcelModified, size:_lastExcelSize, ok:_lastExcelOkTs};
   const _restoreMeta = ()=>{ _lastExcelETag=_prevMeta.etag; _lastExcelModified=_prevMeta.modified; _lastExcelSize=_prevMeta.size; _lastExcelOkTs=_prevMeta.ok; saveExcelMeta(); };
   try{
+    // 0. Vía rápida: el JSON que genera GitHub Actions (si existe y coincide con el .xlsx actual).
+    if(await tryLoadExcelJson(silent)){ scheduleReload(); return; }
     // 1. HEAD: detectar cambios.
     //    Antes esto SOLO corría si silent===true (el ciclo automático cada
     //    5 min); la carga inicial de cada pestaña se saltaba el chequeo y
@@ -182,7 +247,7 @@ async function autoLoadExcel(silent=false){
     _lastExcelSize = cl>0 ? cl : buf.byteLength;
     if(!silent){autobar(80);}
     _lastVerifiedTs=Date.now();
-    const _okExcel = processExcel(buf,'CONTROL_UBI_AUTO', true);
+    const _okExcel = await processExcel(buf,'CONTROL_UBI_AUTO', true, {version:'x:'+(_lastExcelETag||_lastExcelModified||_lastExcelSize)});
     if(_okExcel){ _lastExcelOkTs=Date.now(); saveExcelMeta(); }
     else { _restoreMeta(); console.warn('[Excel] no se pudo procesar; se reintentará en el próximo ciclo'); }
     if(!silent){setTimeout(()=>autobar(0),600);}
@@ -220,6 +285,7 @@ function forceLoadExcelFromGitHub(){
   _lastExcelETag      = '';
   _lastExcelModified  = '';
   _lastExcelSize      = 0;
+  _jm = {}; saveJsonMeta(); _jsonOffUntil = 0;
   saveExcelMeta();
   autoLoadExcel(false); // silent=false → barra de progreso visible
 }

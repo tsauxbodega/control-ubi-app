@@ -1,3 +1,4 @@
+import { findSheetName, normCode } from './excel-parse.js';
 import { PRICES, PRICE_IDX, cleanNumber, set_PRICE_IDX } from './state-globals.js';
 import { processExcel } from './excel-respaldo.js';
 // ═══ js/file-upload.js — extraído de index.html (líneas 7066–7101 del original) ═══
@@ -12,15 +13,9 @@ function handleFile(e){
   e.target.value='';
 }
 function prog(p){document.getElementById('progfill').style.width=p+'%';}
-function normCode(v){return String(v??'').replace(/ /g,' ').trim().toUpperCase().replace(/\s+/g,'');}
 // Ignora guiones al comparar códigos (la etiqueta del repuesto a veces los
 // trae y el inventario no, o viceversa).
 function stripDash(v){return String(v??'').toUpperCase().replace(/-/g,'');}
-function findSheetName(sheets,aliases){
-  const ups=sheets.map(s=>[s,s.toUpperCase()]);
-  for(const a of aliases){const au=a.toUpperCase();const exact=ups.find(([,u])=>u===au);if(exact)return exact[0];const partial=ups.find(([,u])=>u.includes(au));if(partial)return partial[0];}
-  return null;
-}
 function addInvRow(store,code,desc,stock,ubi,abc='',days=0,grp='',cost=0,score=0,date='',ultima_compra=''){
   const c=normCode(code);if(!c)return;
   let u=String(ubi??'').trim();

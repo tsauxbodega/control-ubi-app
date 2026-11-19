@@ -43,7 +43,8 @@ export default {
     const cors = corsHeaders(request, env);
     const origin = request.headers.get('Origin') || '';
     const url = new URL(request.url);
-    const isExcel = url.pathname === '/api/excel';
+    const isExcelJson = url.pathname === '/api/excel-json';
+    const isExcel = url.pathname === '/api/excel' || isExcelJson;
 
     // El navegador debe provenir de un origen explícitamente autorizado.
     const allowedOrigins = String(env.ALLOWED_ORIGINS || '')
@@ -80,7 +81,7 @@ export default {
     }
 
     if (isExcel && (request.method === 'GET' || request.method === 'HEAD')) {
-      return excelFromGithub(request, env, cors);
+      return excelFromGithub(request, env, cors, isExcelJson ? 'json' : 'xlsx');
     }
 
     if (!env.API_TOKEN) {

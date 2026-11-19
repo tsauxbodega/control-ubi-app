@@ -1,20 +1,9 @@
+import { cleanNumber, normPriceKey } from './excel-parse.js';
 import { pricesRawForStorage } from './precios-divisor.js';
 import { updateBinCounter } from './sugerir.js';
 // ═══ js/state-globals.js — extraído de index.html (líneas 6891–7065 del original) ═══
 // Módulo ES: importa lo que usa de otros módulos y exporta lo que otros necesitan (generado por análisis de ámbito; ver docs/MODULOS.md).
 // ===================== FUNCIÓN LIMPIEZA NUMÉRICA =====================
-function cleanNumber(v){
-  if(v===null||v===undefined||v==='')return 0;
-  if(typeof v==='number')return v;
-  let s=String(v).replace(/[^0-9.,\-]/g,'').trim();
-  if(!s)return 0;
-  const hasComma=s.includes(','),hasDot=s.includes('.');
-  if(hasComma&&hasDot){const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.');if(lc>ld){s=s.replace(/\./g,'').replace(',','.');}else{s=s.replace(/,/g,'');}}
-  else if(hasComma){if(/,\d{3}$/.test(s)&&s.indexOf(',')===s.lastIndexOf(','))s=s.replace(',','');else s=s.replace(',','.');}
-  else if(hasDot){const wd=s.replace('.','');if(/\.\d{3}$/.test(s)&&parseFloat(wd)>=1000)s=s.replace('.','')}
-  const n=parseFloat(s);return isNaN(n)?0:n;
-}
-
 // ===================== DATA =====================
 let INV=[],PRICES={},PRICE_IDX={},UBI_TEO=[],ESTANTES=[],NOSTOCK_UBI=[];
 // Tipos de precio detectados dinámicamente de la hoja PRECIOS_DATA del
@@ -27,11 +16,6 @@ let INV=[],PRICES={},PRICE_IDX={},UBI_TEO=[],ESTANTES=[],NOSTOCK_UBI=[];
 // [mostrador, accesorios, desc, costo] — los tipos adicionales quedan
 // disponibles aparte en PRICES[cod].byType para el selector nuevo.
 let PRICE_TYPES=[];
-function normPriceKey(label){
-  return String(label||'').trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'precio';
-}
 let SM_MAP={}; // Stock Muerto: { codigo: {desc, ubi, stock, ult_compra, ult_vt} }
 let KAIZEN_EXT={}; // { cod: {meses:[m1..m6], oo:n, bo:n, mad:n} } — para cálculo MAX-MAX
 let UBI2_MAP={};  // { cod: ubi2 } — segunda ubicación cuando KAIZEN tiene "UBI1 UBI2" en la celda

@@ -244,11 +244,31 @@ function getBusListPrice(priceRow, grp){
 }
 
 const SHELF_SNAP_THROTTLE_MS = 10*60*1000; // no reescribir más de 1 vez cada 10 min por cliente
-async function syncShelfSnapshots(){
+const SHELF_SNAP_CLAIM_TTL_MS = 10*60*1000; // si quien reclamó la actualización no la terminó, otro puede retomarla
+// version = identificador de los datos que se acaban de cargar (ETag/hash del Excel). Cuando se pasa, SOLO UN cliente
+// por versión escribe los resúmenes en Firestore: el primero reclama la versión con una transacción en
+// panorama_snapshot/current y el resto ve que ya está reclamada/terminada y no escribe nada (así N usuarios no
+// multiplican las escrituras del plan gratuito). Todos los demás siguen teniendo sus datos completos porque los leen
+// directamente del Excel/JSON; estos resúmenes solo sirven para el QR sin sesión. Sin version (carga manual de un
+// archivo local) se comporta como antes.
+async function syncShelfSnapshots(version){
   try{
     if(!CURRENT_USER || !ESTANTES.length) return;
     const lastSync=parseInt(localStorage.getItem('shelfSnapSyncTs')||'0');
     if(Date.now()-lastSync < SHELF_SNAP_THROTTLE_MS) return;
+
+    if(version){
+      const ref=db.collection('panorama_snapshot').doc('current');
+      let mine=false;
+      await db.runTransaction(async tx=>{
+        const d=await tx.get(ref); const x=d.exists?d.data():{};
+        const taken = x.src===version && (x.done===true || (Date.now()-(x.claimTs||0)) < SHELF_SNAP_CLAIM_TTL_MS);
+        if(taken){ mine=false; return; }
+        tx.set(ref,{src:version, done:false, claimTs:Date.now(), claimBy:CURRENT_USER.uid},{merge:true});
+        mine=true;
+      });
+      if(!mine){ localStorage.setItem('shelfSnapSyncTs', String(Date.now())); return; }
+    }
 
     const batch=db.batch();
     let count=0;
@@ -309,6 +329,7 @@ async function syncShelfSnapshots(){
       const kpis=computePanoramaKPIs();
       await db.collection('panorama_snapshot').doc('current').set({
         ...kpis,
+        src:version||'', done:true,
         ts:firebase.firestore.FieldValue.serverTimestamp()
       });
     }catch(e){
