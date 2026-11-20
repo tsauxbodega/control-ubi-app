@@ -2205,6 +2205,23 @@
 
   <!-- ── BATERÍAS ── -->
   <div class="etq-sub on" id="etqsub-bat">
+    <div class="sbox no-print" id="etq-veh-box">
+      <div class="slbl">🚗 Buscar por vehículo</div>
+      <div class="srow">
+        <input class="sinput" id="etq-veh-q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Vehículo: hilux diesel · corolla cross · lc 300 · prado 250 · o un código (LN2, 80D23L)">
+        <button class="xbtn" id="etq-veh-clear" type="button">✕</button>
+      </div>
+      <div class="etq-veh-fuel" id="etq-veh-fuel">
+        <button type="button" class="etq-veh-pill on" data-fuel="">Todos</button>
+        <button type="button" class="etq-veh-pill" data-fuel="GAS">⛽ Gasolina</button>
+        <button type="button" class="etq-veh-pill" data-fuel="DSL">🔵 Diésel</button>
+        <button type="button" class="etq-veh-pill" data-fuel="HEV">⚡ Híbrido</button>
+      </div>
+      <div class="etq-veh-pills" id="etq-veh-chips"></div>
+      <div id="etq-veh-msg" class="etq-veh-msg"></div>
+      <div id="etq-veh-result"></div>
+    </div>
     <div class="sbox no-print">
       <div class="slbl">📋 Cola de etiquetas</div>
       <div id="etq-bat-queue" class="etq-queue"></div>
