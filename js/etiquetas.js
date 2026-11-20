@@ -1,5 +1,6 @@
 import { goTab } from './ui-header-tabs.js';
 import { jsAttrSafe } from './utils.js';
+import { buscarPorVehiculo, VEHICULOS_RAPIDOS } from './etiquetas-vehiculo.js';
 // ═══ js/etiquetas.js — extraído de index.html (líneas 19072–19858 del original) ═══
 // Módulo ES: importa lo que usa de otros módulos y exporta lo que otros necesitan (generado por análisis de ámbito; ver docs/MODULOS.md).
 // ═══════════════════════════════════════════════════════════════════════════
@@ -258,6 +259,94 @@ function etqBatLabelHTML(ref,d,fecha,obs,showEquiv){
     </div>
   </div></div>`;
 }
+
+// ── BÚSQUEDA POR VEHÍCULO ──────────────────────────────────────────────────
+// Escribes "hilux diesel" / "corolla cross" / "lc 300" (o un código como LN2) y salen las
+// baterías que le corresponden, con su referencia Toyota (la de la etiqueta), specs y equivalentes.
+// La lógica de coincidencia está en js/etiquetas-vehiculo.js (probada en tests/etiquetas-vehiculo.test.mjs).
+let ETQ_VEH_FUEL='';
+
+function etqBatAgregarRef(ref){
+  // Reusa una fila vacía o suma 1 a la cantidad si la referencia ya está en la cola.
+  const filas=ETQ_BAT_ROWS.map(id=>({id,ref:document.getElementById(`${id}-ref`)?.value||''}));
+  const igual=filas.find(f=>f.ref===ref);
+  if(igual){ const q=document.getElementById(`${igual.id}-qty`); if(q) q.value=Math.min(500,(parseInt(q.value)||1)+1); }
+  else{
+    const vacia=filas.find(f=>!f.ref);
+    if(vacia){ const sel=document.getElementById(`${vacia.id}-ref`); if(sel){ sel.value=ref; etqBatRefChange(vacia.id); } }
+    else etqBatAddRow(ref);
+  }
+  let total=0;
+  ETQ_BAT_ROWS.forEach(id=>{ if(document.getElementById(`${id}-ref`)?.value) total+=parseInt(document.getElementById(`${id}-qty`)?.value)||1; });
+  return total;
+}
+
+function etqVehCardHTML(r,destacado){
+  const d=r.d, tc=etqTipoCol(d.tipo);
+  const aplic=String(d.aplic||'').split(/\s+\/\s+/).map(a=>
+    a.trim()===r.match.trim()&&destacado?`<b style="color:var(--cyan)">${etqEsc(a)}</b>`:etqEsc(a)).join(' <span style="opacity:.4">/</span> ');
+  const equiv=d.tipo_caja?Object.entries(ETQ_BAT_CAT).filter(([k,x])=>x.tipo_caja===d.tipo_caja&&k!==r.ref).slice(0,4).map(([k])=>etqEsc(k)):[];
+  return `<div class="etq-veh-card">
+    <div class="etq-veh-top">
+      <div>
+        <div class="etq-veh-ref">${etqEsc(r.ref)}</div>
+        <div class="etq-veh-sub">${etqEsc(d.marca)} · ${etqEsc(d.modelo)}</div>
+      </div>
+      <button class="sbtn etq-veh-add" data-etq-add="${etqEsc(r.ref)}">＋ Etiqueta</button>
+    </div>
+    <div class="etq-veh-chips-row">
+      <span class="etq-veh-chip" style="background:${tc}22;color:${tc};border-color:${tc}44">${etqEsc(d.tipo)}</span>
+      <span class="etq-veh-chip">${etqEsc(d.v)}V · ${etqEsc(d.ah)}Ah · ${etqEsc(d.cca)}A</span>
+      <span class="etq-veh-chip">Caja ${etqEsc(d.tipo_caja||'—')}</span>
+      ${etqCombLabel(d.comb)?`<span class="etq-veh-chip">${etqCombLabel(d.comb)}</span>`:''}
+    </div>
+    <div class="etq-veh-aplic">📍 ${aplic}</div>
+    ${equiv.length?`<div class="etq-veh-eq">🔄 Misma caja: ${equiv.join(' · ')}</div>`:''}
+  </div>`;
+}
+
+function etqVehRender(){
+  const q=document.getElementById('etq-veh-q')?.value||'';
+  const el=document.getElementById('etq-veh-result');
+  if(!el) return;
+  document.querySelectorAll('#etq-veh-fuel [data-fuel]').forEach(b=>b.classList.toggle('on',b.dataset.fuel===ETQ_VEH_FUEL));
+  document.querySelectorAll('#etq-veh-chips [data-veh]').forEach(b=>b.classList.toggle('on',q.trim().toLowerCase()===b.dataset.veh.toLowerCase()));
+  if(!q.trim()){ el.innerHTML=''; return; }
+  const r=buscarPorVehiculo(ETQ_BAT_CAT,q,ETQ_VEH_FUEL);
+  const n=r.exactos.length+r.relacionados.length+r.directos.length;
+  if(!n){ el.innerHTML=`<div class="alert ae" style="margin:10px 0">Sin baterías para "${etqEsc(q)}"${ETQ_VEH_FUEL?' con ese combustible':''}. Prueba solo el modelo (ej. <b>hilux</b>) o quita el filtro de combustible.</div>`; return; }
+  const sec=(tit,rows,dest)=>rows.length?`<div class="etq-veh-sec">${tit} <span class="etq-badge etq-badge-alt">${rows.length}</span></div><div class="etq-veh-grid">${rows.map(x=>etqVehCardHTML(x,dest)).join('')}</div>`:'';
+  el.innerHTML=
+    sec('✅ Le corresponde',r.exactos,true)+
+    sec(r.exactos.length?'También aparece en otras versiones':'Versiones relacionadas',r.relacionados,true)+
+    sec('🔎 Coincide por código / modelo',r.directos,false);
+}
+
+function etqVehInit(){
+  const q=document.getElementById('etq-veh-q'); if(!q||q.dataset.ready) return;
+  q.dataset.ready='1';
+  q.addEventListener('input',etqVehRender);
+  document.getElementById('etq-veh-clear')?.addEventListener('click',()=>{ q.value=''; ETQ_VEH_FUEL=''; etqVehRender(); q.focus(); });
+  document.getElementById('etq-veh-fuel')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-fuel]'); if(!b) return;
+    ETQ_VEH_FUEL=b.dataset.fuel; etqVehRender();
+  });
+  const chips=document.getElementById('etq-veh-chips');
+  if(chips){
+    chips.innerHTML=VEHICULOS_RAPIDOS.map(v=>`<button type="button" class="etq-veh-pill" data-veh="${etqEsc(v)}">${etqEsc(v)}</button>`).join('');
+    chips.addEventListener('click',e=>{ const b=e.target.closest('[data-veh]'); if(!b) return; q.value=b.dataset.veh; etqVehRender(); });
+  }
+  document.getElementById('etq-veh-result')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-etq-add]'); if(!b) return;
+    const total=etqBatAgregarRef(b.dataset.etqAdd);
+    b.textContent='✓ En la cola'; b.classList.add('done');
+    const msg=document.getElementById('etq-veh-msg');
+    if(msg) msg.innerHTML=`✓ <b>${etqEsc(b.dataset.etqAdd)}</b> agregada · ${total} etiqueta${total!==1?'s':''} en la cola — <a href="#etq-bat-queue" id="etq-veh-goq">ir a la cola ↓</a>`;
+    document.getElementById('etq-veh-goq')?.addEventListener('click',ev=>{ ev.preventDefault(); document.getElementById('etq-bat-queue')?.scrollIntoView({behavior:'smooth',block:'center'}); });
+  });
+}
+document.addEventListener('DOMContentLoaded',etqVehInit);
+if(document.readyState!=='loading') etqVehInit();
 
 // ── KITS ──────────────────────────────────────────────────────────────────
 let ETQ_KIT_ROWS=[];
